@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
+import { processMeetingAgenda } from './agenda-parser.js';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
 const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetAllMeetings`;
@@ -28,7 +29,7 @@ function getCurrentMonthDateRange() {
   };
 }
 
-async function fetchMeetingsWithVideo() {
+export async function fetchMeetingsWithVideo() {
   const { start, end } = getCurrentMonthDateRange();
 
   const res = await fetch(API_URL, {
@@ -78,6 +79,14 @@ async function main() {
   console.log(`Found ${meetings.length} meetings with video.`);
 
   for (const meeting of meetings) {
+    // Extract agenda with timestamps
+    try {
+      await processMeetingAgenda(meeting);
+    } catch (error) {
+      console.error(`Failed to process agenda for ${meeting.title}:`, error);
+    }
+    
+    // Download the video
     await downloadMeeting(meeting);
   }
 }

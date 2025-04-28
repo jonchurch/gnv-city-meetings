@@ -4,7 +4,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "download": "node index.js",
+    "extract-agendas": "node extract-agendas.js",
+    "generate-chapters": "node generate-youtube-chapters.js"
   },
   "engines": {
     "node": ">=22"
