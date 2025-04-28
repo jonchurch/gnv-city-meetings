@@ -37,6 +37,7 @@ async function fetchMeetingsWithVideo() {
     .map((meeting) => ({
       title: meeting.MeetingName,
       meetingUrl: `${BASE_URL}/Meeting.aspx?Id=${meeting.ID}`,
+      id: meeting.ID
     }));
 
   return meetingsWithVideo;
