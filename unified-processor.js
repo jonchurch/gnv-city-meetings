@@ -9,7 +9,9 @@ const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetAllMeetings`;
 const DOWNLOAD_DIR = './downloads';
 const METADATA_DIR = './downloads/metadata';
 const CHAPTERS_DIR = './downloads/youtube-chapters';
-const YTDLP_PATH = '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
+
+// Use environment variable for YTDLP_PATH if available, otherwise use default
+const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
 
 const execAsync = promisify(exec);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -217,9 +219,14 @@ async function downloadMeeting(meeting) {
   const filename = `${safeDate}_${safeTitle}`;
   const outputPath = path.join(DOWNLOAD_DIR, `${filename}.%(ext)s`);
 
+  // If YTDLP_PATH contains a path, use python3 to execute it, otherwise assume it's in PATH
+  const cmd = YTDLP_PATH.includes('/') ? 
+    `python3 "${YTDLP_PATH}" "${meetingUrl}" --output "${outputPath}"` :
+    `${YTDLP_PATH} "${meetingUrl}" --output "${outputPath}"`;
+
   console.log(`Downloading video for: ${filename}`);
+  console.log(`Using command: ${cmd}`);
   try {
-    const cmd = `python3 "${YTDLP_PATH}" "${meetingUrl}" --output "${outputPath}"`;
     const { stdout, stderr } = await execAsync(cmd);
     console.log(stdout);
     if (stderr) console.error(stderr);
@@ -330,6 +337,93 @@ async function processMeeting(meeting, options = {}) {
 }
 
 /**
+ * Load processed meetings from the manifest file
+ * @returns {Promise<Object>} - The processed meetings manifest
+ */
+async function loadProcessedMeetingsManifest() {
+  const manifestPath = path.join(DOWNLOAD_DIR, 'processed-meetings.json');
+  
+  try {
+    // Ensure the directory exists
+    await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
+    
+    // Check if manifest exists
+    try {
+      await fs.access(manifestPath);
+    } catch (error) {
+      // Create a new manifest if it doesn't exist
+      const newManifest = {
+        processedMeetings: [],
+        lastUpdated: new Date().toISOString()
+      };
+      
+      await fs.writeFile(manifestPath, JSON.stringify(newManifest, null, 2));
+      console.log(`Created new processed meetings manifest at: ${manifestPath}`);
+      return newManifest;
+    }
+    
+    // Read and parse the manifest
+    const manifestData = await fs.readFile(manifestPath, 'utf8');
+    return JSON.parse(manifestData);
+  } catch (error) {
+    console.error('Error loading processed meetings manifest:', error);
+    // Return empty manifest on error
+    return {
+      processedMeetings: [],
+      lastUpdated: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Save updated processed meetings manifest
+ * @param {Object} manifest - The manifest to save
+ */
+async function saveProcessedMeetingsManifest(manifest) {
+  const manifestPath = path.join(DOWNLOAD_DIR, 'processed-meetings.json');
+  
+  try {
+    // Update last updated timestamp
+    manifest.lastUpdated = new Date().toISOString();
+    
+    // Write the manifest
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log(`Updated processed meetings manifest at: ${manifestPath}`);
+  } catch (error) {
+    console.error('Error saving processed meetings manifest:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if a meeting has already been processed
+ * @param {string} meetingId - The meeting ID to check
+ * @param {Object} manifest - The processed meetings manifest
+ * @returns {boolean} - True if the meeting has been processed, false otherwise
+ */
+function isMeetingProcessed(meetingId, manifest) {
+  return manifest.processedMeetings.some(m => m.id === meetingId);
+}
+
+/**
+ * Filter out already processed meetings
+ * @param {Array<Object>} meetings - List of meetings to filter
+ * @param {Object} manifest - The processed meetings manifest
+ * @param {boolean} forceReprocess - Whether to force reprocessing of meetings
+ * @returns {Array<Object>} - Filtered list of meetings
+ */
+function filterProcessedMeetings(meetings, manifest, forceReprocess) {
+  if (forceReprocess) {
+    console.log('Force reprocess flag set. Processing all meetings regardless of status.');
+    return meetings;
+  }
+  
+  const newMeetings = meetings.filter(meeting => !isMeetingProcessed(meeting.id, manifest));
+  console.log(`Found ${newMeetings.length} new meetings out of ${meetings.length} total.`);
+  return newMeetings;
+}
+
+/**
  * Main function to process meetings based on command line arguments
  */
 async function main() {
@@ -343,6 +437,7 @@ async function main() {
     const args = process.argv.slice(2);
     const options = {
       skipDownload: args.includes('--no-download'),
+      forceReprocess: args.includes('--force'),
       startDate: null,
       endDate: null
     };
@@ -361,22 +456,53 @@ async function main() {
     
     console.log(`Running with options: ${JSON.stringify(options, null, 2)}`);
     
+    // Load processed meetings manifest
+    const manifest = await loadProcessedMeetingsManifest();
+    console.log(`Loaded manifest with ${manifest.processedMeetings.length} previously processed meetings.`);
+    
     // Fetch meetings with video
-    const meetings = await fetchMeetingsWithVideo(options.startDate, options.endDate);
+    const allMeetings = await fetchMeetingsWithVideo(options.startDate, options.endDate);
+    
+    // Filter out already processed meetings
+    const meetings = filterProcessedMeetings(allMeetings, manifest, options.forceReprocess);
+    
+    if (meetings.length === 0) {
+      console.log('No new meetings to process. Exiting.');
+      return [];
+    }
     
     // Process each meeting
     const results = [];
     for (const meeting of meetings) {
       try {
         const result = await processMeeting(meeting, options);
-        results.push({
+        
+        // Add to results
+        const meetingResult = {
           meetingId: meeting.id,
           title: meeting.title,
           date: meeting.startDate,
           agendaItemsCount: result.agendaItemsCount,
           success: true,
-          chaptersAvailable: !!result.chaptersText
-        });
+          chaptersAvailable: !!result.chaptersText,
+          processedAt: new Date().toISOString()
+        };
+        
+        results.push(meetingResult);
+        
+        // Add to processed meetings manifest
+        if (!isMeetingProcessed(meeting.id, manifest)) {
+          manifest.processedMeetings.push({
+            id: meeting.id,
+            title: meeting.title,
+            date: meeting.startDate,
+            processedAt: new Date().toISOString(),
+            success: true
+          });
+          
+          // Save manifest after each successful processing
+          await saveProcessedMeetingsManifest(manifest);
+        }
       } catch (error) {
         console.error(`Failed to process meeting ${meeting.title}:`, error);
         results.push({
@@ -384,7 +510,8 @@ async function main() {
           title: meeting.title,
           date: meeting.startDate,
           success: false,
-          error: error.message
+          error: error.message,
+          processedAt: new Date().toISOString()
         });
       }
     }

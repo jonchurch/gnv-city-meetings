@@ -42,6 +42,17 @@ npm run process -- --start=2025-01-01T00:00:00-04:00 --end=2025-12-31T00:00:00-0
 npm run metadata-only
 ```
 
+### Smart Processing (Skip Previously Processed Meetings)
+
+The tool automatically tracks which meetings have been processed in `./downloads/processed-meetings.json` and will skip them in subsequent runs. This is perfect for cron jobs as it will only process new meetings.
+
+If you need to reprocess all meetings (ignoring the tracking):
+
+```bash
+npm run force-process        # Process all meetings with video download
+npm run force-metadata       # Process all meetings metadata only
+```
+
 ### Results
 
 The script will:

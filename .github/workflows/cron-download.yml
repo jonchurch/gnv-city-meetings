@@ -1,0 +1,107 @@
+name: Process City Meetings
+
+on:
+  schedule:
+    - cron: '0 5 * * *'  # Run daily at 5:00 AM UTC
+  workflow_dispatch:      # Allow manual triggering
+
+jobs:
+  process-meetings:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history to ensure proper commit history
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      # First pass: Extract metadata only and update tracking file
+      - name: Build and run metadata extraction
+        run: |
+          docker build -t gnv-city-meetings .
+          docker run --name gnv-metadata-container gnv-city-meetings npm run metadata-only
+          
+      - name: Copy metadata from container
+        run: |
+          mkdir -p downloads/metadata downloads/youtube-chapters
+          docker cp gnv-metadata-container:/app/downloads/metadata ./downloads/
+          docker cp gnv-metadata-container:/app/downloads/youtube-chapters ./downloads/
+          docker cp gnv-metadata-container:/app/downloads/processed-meetings.json ./downloads/
+      
+      - name: Commit metadata changes
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add downloads/metadata downloads/youtube-chapters downloads/processed-meetings.json
+          git diff --staged --quiet || git commit -m "Update meeting metadata and chapter markers [automated]"
+          git push
+      
+      # Second pass: Download videos for new meetings
+      - name: Download new meeting videos
+        run: |
+          docker run --name gnv-download-container -v $(pwd)/downloads:/app/downloads gnv-city-meetings npm run download-videos
+            
+      - name: Update manifest with download status
+        run: |
+          docker cp gnv-download-container:/app/downloads/processed-meetings.json ./downloads/
+          
+      - name: Commit download status changes
+        run: |
+          git add downloads/processed-meetings.json
+          git diff --staged --quiet || git commit -m "Update video download status [automated]"
+          git push
+            
+      # Third pass: Upload videos to YouTube
+      - name: Upload videos to YouTube
+        env:
+          # You would set these secrets in your GitHub repository settings
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          # Find all downloaded videos and upload them
+          cd downloads
+          for video_file in $(find . -type f -not -name "*.json" -not -name "*_youtube_chapters.txt"); do
+            # Extract meeting id and date from the video filename
+            filename=$(basename "$video_file")
+            date_part=$(echo $filename | cut -d'_' -f1)
+            title_part=$(echo $filename | cut -d'_' -f2- | sed 's/\.[^.]*$//')
+            title="$title_part - $date_part"
+            
+            # Find the corresponding chapters file
+            chapters_file=$(find . -name "${filename%.*}_youtube_chapters.txt" -o -name "${date_part}_${title_part}_youtube_chapters.txt")
+            
+            # Upload the video
+            echo "Uploading $video_file with title '$title'"
+            docker run --name "gnv-upload-$filename" \
+              -v $(pwd):/app/uploads \
+              -e VIDEO_PATH="/app/uploads/$video_file" \
+              -e VIDEO_TITLE="$title" \
+              -e DESCRIPTION_FILE="${chapters_file:+/app/uploads/$chapters_file}" \
+              -e YOUTUBE_CLIENT_ID \
+              -e YOUTUBE_CLIENT_SECRET \
+              -e YOUTUBE_REFRESH_TOKEN \
+              --rm \
+              gnv-city-meetings node youtube-uploader.js > "youtube_result_$filename.json"
+            
+            # Record the result
+            echo "Uploaded $filename to YouTube, result saved to youtube_result_$filename.json"
+          done
+          cd ..
+          
+      - name: Commit YouTube upload results
+        run: |
+          git add downloads/youtube_result_*.json
+          git diff --staged --quiet || git commit -m "Add YouTube upload results [automated]"
+          git push
+          
+      # Cleanup downloaded videos after upload to save space
+      - name: Clean up downloaded videos
+        run: |
+          find ./downloads -type f -not -name "*.json" -not -name "*_youtube_chapters.txt" -delete
+          git add downloads
+          git diff --staged --quiet || git commit -m "Clean up downloaded videos [automated]"
+          git push

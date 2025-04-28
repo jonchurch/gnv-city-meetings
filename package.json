@@ -9,7 +9,11 @@
     "extract-agendas": "node extract-agendas.js",
     "generate-chapters": "node generate-youtube-chapters.js",
     "process": "node unified-processor.js",
-    "metadata-only": "node unified-processor.js --no-download" 
+    "metadata-only": "node unified-processor.js --no-download",
+    "force-process": "node unified-processor.js --force",
+    "force-metadata": "node unified-processor.js --no-download --force",
+    "download-videos": "node video-downloader.js",
+    "upload-youtube": "node youtube-uploader.js"
   },
   "engines": {
     "node": ">=22"
