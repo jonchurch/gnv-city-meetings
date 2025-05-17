@@ -509,8 +509,7 @@ async function main() {
 
           const ytResult = await uploadToYouTube({
             videoPath: result.downloadResult.outputPath,
-            title, description: 
-            `${title} \n${result.chaptersText}`,
+            title, description: result.chaptersText,
             tags: ['Gainesville'],
             privacyStatus: 'unlisted'
           })

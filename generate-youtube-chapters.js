@@ -5,6 +5,9 @@ import { fileURLToPath } from 'url';
 const METADATA_DIR = './downloads/metadata';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// NOTE: This file has basically become a generateDescription file
+// since we are using the output as teh desc, and it combines more than the chapters
+
 /**
  * Generate YouTube chapters format from agenda metadata
  * @param {string} metadataFilePath - Path to the agenda metadata JSON file
@@ -15,6 +18,8 @@ async function generateYouTubeChapters(metadataFilePath) {
     // Read and parse the metadata file
     const metadata = JSON.parse(await fs.readFile(metadataFilePath, 'utf8'));
     const { meetingTitle, meetingDate, agendaItems } = metadata;
+
+    const headline = `${meetingTitle} - ${formattedDate}\n\n`;
     
     // Filter out items without timestamps and sort by timeStart
     const chaptersItems = agendaItems
@@ -23,15 +28,15 @@ async function generateYouTubeChapters(metadataFilePath) {
     
     if (chaptersItems.length === 0) {
       console.log('No timestamped agenda items found');
-      return '';
+      // bail and just return the headline
+      return headline;
     }
     
     // Format the date for the title
     const formattedDate = meetingDate.split(' ')[0].replace(/\//g, '-');
     
     // Create chapter lines in YouTube format (00:00:00 Chapter Title)
-    let chaptersText = `${meetingTitle} - ${formattedDate}\n\n`;
-    chaptersText += 'Chapters:\n';
+    let chaptersText = ''
     
     for (const item of chaptersItems) {
       // YouTube requires the first chapter to start at 00:00:00
@@ -43,7 +48,7 @@ async function generateYouTubeChapters(metadataFilePath) {
       chaptersText += `${item.startTime} ${item.title}\n`;
     }
     
-    return chaptersText;
+    return `${headline}\n${chaptersText}`;
   } catch (error) {
     console.error('Error generating YouTube chapters:', error);
     throw error;
