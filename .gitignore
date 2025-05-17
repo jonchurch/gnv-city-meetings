@@ -3,4 +3,7 @@ node_modules/
 
 # output files
 downloads/
+
+# config
 .env
+.credentials
