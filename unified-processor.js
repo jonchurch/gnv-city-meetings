@@ -3,7 +3,8 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
-import { uploadToYouTube } from './youtube-uploader';
+import { uploadToYouTube } from './youtube-uploader.js';
+import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
 const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetAllMeetings`;
@@ -218,7 +219,7 @@ async function downloadMeeting(meeting) {
   const safeTitle = sanitizeFilename(title);
   const safeDate = startDate.split(' ')[0].replace(/\//g, '-');
   const filename = `${safeDate}_${safeTitle}`;
-  const outputPath = path.join(DOWNLOAD_DIR, `${filename}.%(ext)s`);
+  const outputPath = path.join(DOWNLOAD_DIR, `${filename}.mp4`);
 
   // If YTDLP_PATH contains a path, use python3 to execute it, otherwise assume it's in PATH
   const cmd = YTDLP_PATH.includes('/') ? 
@@ -397,13 +398,13 @@ async function saveProcessedMeetingsManifest(manifest) {
 }
 
 /**
- * Check if a meeting has already been processed
+ * Check if a meeting has already been processed successfully
  * @param {string} meetingId - The meeting ID to check
  * @param {Object} manifest - The processed meetings manifest
  * @returns {boolean} - True if the meeting has been processed, false otherwise
  */
 function isMeetingProcessed(meetingId, manifest) {
-  return manifest.processedMeetings.some(m => m.id === meetingId);
+  return manifest.processedMeetings.some(m => m.id === meetingId && m.success);
 }
 
 /**
