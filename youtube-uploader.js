@@ -1,6 +1,95 @@
-// youtube-uploader.js - A clean, focused implementation for uploading videos to YouTube
+// youtube-uploader.js - Implementation for uploading videos to YouTube
 
 import fs from 'fs/promises';
+import fsExtra from 'fs-extra';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { google } from 'googleapis';
+import open from 'open';
+import readline from 'readline';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// Constants
+const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
+const TOKEN_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '.credentials');
+const TOKEN_PATH = path.join(TOKEN_DIR, 'youtube-upload-token.json');
+
+// Get client credentials from environment variables
+const CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
+const CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+const REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://localhost';
+
+// Create an OAuth2 client with the given credentials
+async function authorize() {
+  try {
+    // Check if required environment variables are set
+    if (!CLIENT_ID || !CLIENT_SECRET) {
+      console.error('Error: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be set in .env file');
+      process.exit(1);
+    }
+
+    // Create OAuth client
+    const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+    
+    // Check if we have previously stored a token
+    try {
+      const token = await fs.readFile(TOKEN_PATH, 'utf8');
+      oAuth2Client.setCredentials(JSON.parse(token));
+      return oAuth2Client;
+    } catch (err) {
+      return getNewToken(oAuth2Client);
+    }
+  } catch (error) {
+    console.error('Error during authorization:', error);
+    throw error;
+  }
+}
+
+// Get and store new token after prompting for user authorization
+async function getNewToken(oAuth2Client) {
+  try {
+    // Generate an auth URL
+    const authUrl = oAuth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: SCOPES,
+      prompt: 'consent' // Force to get refresh token
+    });
+
+    console.log('Authorize this app by visiting this url:', authUrl);
+    await open(authUrl); // Automatically open the URL in the default browser
+
+    // Create readline interface for code input
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    // Wait for the user to enter the code
+    const code = await new Promise((resolve) => {
+      rl.question('Enter the code from that page here: ', (code) => {
+        rl.close();
+        resolve(code);
+      });
+    });
+
+    // Exchange code for tokens
+    const { tokens } = await oAuth2Client.getToken(code);
+    oAuth2Client.setCredentials(tokens);
+
+    // Store the token to disk for later program executions
+    await fsExtra.ensureDir(TOKEN_DIR);
+    await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens));
+    console.log('Token stored to', TOKEN_PATH);
+
+    return oAuth2Client;
+  } catch (error) {
+    console.error('Error getting new token:', error);
+    throw error;
+  }
+}
 
 /**
  * Upload a video to YouTube
@@ -14,32 +103,101 @@ import fs from 'fs/promises';
  * @returns {Promise<Object>} - Upload result with videoId
  */
 async function uploadToYouTube(options) {
-  const { videoPath, title, description, tags = [], categoryId = '25', privacyStatus = 'public' } = options;
+  const { 
+    videoPath, 
+    title, 
+    description, 
+    tags = [], 
+    categoryId = '25', // News & Politics
+    privacyStatus = 'unlisted' 
+  } = options;
   
-  // This would be implemented with the YouTube API
-  // For placeholder implementation, we'll just log what would happen
-  console.log('\n--- YouTube Upload Parameters ---');
-  console.log(`Title: ${title}`);
-  console.log(`Video Path: ${videoPath}`);
-  console.log(`Description length: ${description.length} characters`);
-  console.log(`Tags: ${tags.join(', ')}`);
-  console.log(`Category ID: ${categoryId}`);
-  console.log(`Privacy Status: ${privacyStatus}`);
-  console.log('--------------------------------\n');
-  
-  // In a real implementation, this is where you'd use the YouTube API client
-  console.log('Uploading to YouTube...');
-  
-  // Simulate API response
-  const videoId = `youtube-${Date.now()}`;
-  
-  return {
-    videoId,
-    url: `https://youtu.be/${videoId}`
-  };
+  try {
+    console.log('\n--- YouTube Upload Parameters ---');
+    console.log(`Title: ${title}`);
+    console.log(`Video Path: ${videoPath}`);
+    console.log(`Description length: ${description.length} characters`);
+    console.log(`Tags: ${tags.join(', ')}`);
+    console.log(`Category ID: ${categoryId}`);
+    console.log(`Privacy Status: ${privacyStatus}`);
+    console.log('--------------------------------\n');
+    
+    // Verify the video file exists
+    await fs.access(videoPath);
+    
+    // Get authorized client
+    const auth = await authorize();
+    const youtube = google.youtube({
+      version: 'v3',
+      auth
+    });
+    
+    // Prepare the upload
+    console.log('Starting YouTube upload...');
+    
+    // Setup upload parameters
+    const fileSize = (await fs.stat(videoPath)).size;
+    
+    // Upload file
+    const res = await youtube.videos.insert({
+      part: 'snippet,status',
+      requestBody: {
+        snippet: {
+          title,
+          description,
+          tags,
+          categoryId,
+          defaultLanguage: 'en',
+          defaultAudioLanguage: 'en'
+        },
+        status: {
+          privacyStatus,
+          selfDeclaredMadeForKids: false,
+        }
+      },
+      media: {
+        body: fsExtra.createReadStream(videoPath)
+      }
+    }, {
+      // Optional progress monitoring
+      // this iife is cheeky lol
+      onUploadProgress: (function() {
+        let lastReportedProgress = 0;
+        return evt => {
+          const progress = (evt.bytesRead / fileSize) * 100;
+          const currentTenPercent = Math.floor(progress / 10) * 10;
+          
+          // Only log when we cross a 10% threshold
+          if (currentTenPercent > lastReportedProgress) {
+            console.log(`${currentTenPercent}% complete`);
+            lastReportedProgress = currentTenPercent;
+          }
+        };
+      })()
+    });
+    
+    // Success! Video uploaded
+    console.log('Upload successful!');
+    const videoId = res.data.id;
+    const videoUrl = `https://youtu.be/${videoId}`;
+    
+    return {
+      videoId,
+      url: videoUrl
+    };
+  } catch (error) {
+    console.error('Error in upload:', error);
+    
+    // More detailed error information
+    if (error.response) {
+      console.error('API response error:', error.response.data);
+    }
+    
+    throw error;
+  }
 }
 
-// Command-line interface that takes arguments directly
+// Command-line interface
 async function main() {
   // Parse command line args or environment variables
   const videoPath = process.argv[2] || process.env.VIDEO_PATH;
@@ -81,7 +239,7 @@ async function main() {
       description,
       tags: ['Gainesville', 'City Meeting', 'Government'],
       categoryId: '25', // News & Politics
-      privacyStatus: 'public'
+      privacyStatus: 'unlisted'
     });
     
     console.log('Upload successful!');
@@ -98,7 +256,6 @@ async function main() {
 }
 
 // Check if this file is being run directly
-import { fileURLToPath } from 'url';
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(console.error);
 }
