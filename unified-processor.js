@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
+import { uploadToYouTube } from './youtube-uploader';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
 const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetAllMeetings`;
@@ -234,7 +235,7 @@ async function downloadMeeting(meeting) {
     // Return the output file pattern
     return {
       meetingId: id,
-      outputPattern: outputPath,
+      outputPath,
       filename: filename
     };
   } catch (err) {
@@ -474,6 +475,17 @@ async function main() {
     // Process each meeting
     const results = [];
     for (const meeting of meetings) {
+    
+      let manEntry = {
+        id: meeting.id,
+        title: meeting.title,
+        date: meeting.startDate,
+        processedAt: new Date().toISOString(),
+        uploaded: 'no', // no, yes, error
+        youtubeUrl: undefined,
+        success: false,
+      }
+
       try {
         const result = await processMeeting(meeting, options);
         
@@ -487,24 +499,33 @@ async function main() {
           chaptersAvailable: !!result.chaptersText,
           processedAt: new Date().toISOString()
         };
-        
-        results.push(meetingResult);
-        
-        // Add to processed meetings manifest
-        if (!isMeetingProcessed(meeting.id, manifest)) {
-          manifest.processedMeetings.push({
-            id: meeting.id,
-            title: meeting.title,
-            date: meeting.startDate,
-            processedAt: new Date().toISOString(),
-            success: true
-          });
-          
-          // Save manifest after each successful processing
-          await saveProcessedMeetingsManifest(manifest);
+
+        // we successfully downloaded and processed the video
+        manEntry.success = true
+
+        // now upload
+        try {
+          const title = `${meeting.title} - ${meeting.startDate} | GNV FL`
+
+          const ytResult = await uploadToYouTube({
+            videoPath: result.downloadResult.outputPath,
+            title, description: 
+            `${title} \n${result.chaptersText}`,
+            tags: ['Gainesville'],
+            privacyStatus: 'unlisted'
+          })
+
+          // then mark it as uploaded
+          manEntry = {...manEntry, uploaded: true, youtubeUrl: ytResult.url}
+
+          results.push(meetingResult);
+        } catch(err) {
+          // mark it as processed but error upload
         }
       } catch (error) {
         console.error(`Failed to process meeting ${meeting.title}:`, error);
+        // this is problematic bc it will add a duplicate entry if it exists
+        // we are filtering out already existing manifest entries, but still
         results.push({
           meetingId: meeting.id,
           title: meeting.title,
@@ -513,16 +534,24 @@ async function main() {
           error: error.message,
           processedAt: new Date().toISOString()
         });
+
+        manEntry = {...manEntry, success: false, error: error.message}
+
+      } finally {
+        // Add to processed meetings manifest
+        manifest.processedMeetings.push(manEntry);
+        // Save manifest after each successful processing
+        await saveProcessedMeetingsManifest(manifest);
       }
     }
-    
+
     // Log summary
     console.log('\nSummary:');
     console.log(`Total meetings processed: ${results.length}`);
     console.log(`Successful: ${results.filter(r => r.success).length}`);
     console.log(`Failed: ${results.filter(r => !r.success).length}`);
-    console.log(`Meetings with chapters: ${results.filter(r => r.chaptersAvailable).length}`);
-    
+    // console.log(`Meetings with chapters: ${results.filter(r => r.chaptersAvailable).length}`);
+
     return results;
   } catch (error) {
     console.error('Error in main:', error);
