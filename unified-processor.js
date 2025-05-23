@@ -16,7 +16,11 @@ const CHAPTERS_DIR = './downloads/youtube-chapters';
 const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
 
 const execAsync = promisify(exec);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Format the meeting date into a safe kebob case date
+ */
+const formatMeetingDate = (date) => date.split(' ')[0].replace(/\//g, '-');
 
 /**
  * Process a date range to get meetings
@@ -192,7 +196,7 @@ function generateYouTubeChapters(meeting, agendaData) {
   }
   
   // Format the date for the title
-  const formattedDate = startDate.split(' ')[0].replace(/\//g, '-');
+  const formattedDate = formatMeetingDate(startDate)
   
   // Create chapter lines in YouTube format (00:00:00 Chapter Title)
   let chaptersText = `${meetingTitle} - ${formattedDate}\n\n`;
@@ -216,7 +220,7 @@ function generateYouTubeChapters(meeting, agendaData) {
 async function downloadMeeting(meeting) {
   const { title, meetingUrl, startDate, id } = meeting;
   const safeTitle = sanitizeFilename(title);
-  const safeDate = startDate.split(' ')[0].replace(/\//g, '-');
+  const safeDate = formatMeetingDate(startDate)
   const filename = `${safeDate}_${safeTitle}`;
   const outputPath = path.join(DOWNLOAD_DIR, `${filename}.mp4`);
 
@@ -256,7 +260,7 @@ async function saveMetadata(meeting, agendaData, options = {}) {
     await fs.mkdir(METADATA_DIR, { recursive: true });
     await fs.mkdir(CHAPTERS_DIR, { recursive: true });
     
-    const safeDate = startDate.split(' ')[0].replace(/\//g, '-');
+    const safeDate = formatMeetingDate(startDate)
     const safeTitle = sanitizeFilename(title);
     
     // Save agenda metadata
@@ -505,11 +509,12 @@ async function main() {
 
         // now upload
         try {
-          const title = `${meeting.title} - ${meeting.startDate} | GNV FL`
+          const title = `${meeting.title} - ${formatMeetingDate(meeting.startDate)} | GNV FL`
 
           const ytResult = await uploadToYouTube({
             videoPath: result.downloadResult.outputPath,
-            title, description: result.chaptersText,
+            title, 
+            description: result.chaptersText,
             tags: ['Gainesville'],
             privacyStatus: 'unlisted'
           })
