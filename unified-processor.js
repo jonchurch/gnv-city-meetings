@@ -92,10 +92,10 @@ async function fetchMeetingsWithVideo(startDate, endDate) {
 async function extractAgendaWithTimestamps(meetingId) {
   try {
     // Fetch the meeting page HTML
-    const meetingUrl = `${BASE_URL}/Meeting.aspx?Id=${meetingId}&Agenda=Agenda&lang=English`;
-    console.log(`Fetching agenda from: ${meetingUrl}`);
+    const agendaUrl = `${BASE_URL}/Meeting.aspx?Id=${meetingId}&Agenda=Agenda&lang=English`;
+    console.log(`Fetching agenda from: ${agendaUrl}`);
     
-    const response = await fetch(meetingUrl);
+    const response = await fetch(agendaUrl);
     const html = await response.text();
     
     // Extract video bookmarks (timestamps) using regex
@@ -152,7 +152,8 @@ async function extractAgendaWithTimestamps(meetingId) {
     return {
       meetingId,
       agendaItems,
-      rawBookmarks: bookmarks
+      agendaUrl,
+      rawBookmarks: bookmarks,
     };
   } catch (error) {
     console.error(`Error extracting agenda for meeting ${meetingId}:`, error);
@@ -183,7 +184,7 @@ function formatTime(ms) {
  */
 function generateYouTubeChapters(meeting, agendaData) {
   const { title: meetingTitle, startDate } = meeting;
-  const { agendaItems } = agendaData;
+  const { agendaItems, agendaUrl } = agendaData;
   
   // Filter out items without timestamps and sort by timeStart
   const chaptersItems = agendaItems
@@ -199,7 +200,9 @@ function generateYouTubeChapters(meeting, agendaData) {
   const formattedDate = formatMeetingDate(startDate)
   
   // Create chapter lines in YouTube format (00:00:00 Chapter Title)
-  let chaptersText = `${meetingTitle} - ${formattedDate}\n\n`;
+  let chaptersText = `${meetingTitle} - ${formattedDate}\n`;
+
+  chaptersText += `View the official agenda at ${agendaUrl}\n\n`
   
   for (const item of chaptersItems) {
     // YouTube requires the first chapter to start at 00:00:00
