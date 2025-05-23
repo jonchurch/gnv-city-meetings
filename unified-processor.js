@@ -196,7 +196,6 @@ function generateYouTubeChapters(meeting, agendaData) {
   
   // Create chapter lines in YouTube format (00:00:00 Chapter Title)
   let chaptersText = `${meetingTitle} - ${formattedDate}\n\n`;
-  chaptersText += 'Chapters:\n';
   
   for (const item of chaptersItems) {
     // YouTube requires the first chapter to start at 00:00:00
