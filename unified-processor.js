@@ -12,6 +12,14 @@ const DOWNLOAD_DIR = './downloads';
 const METADATA_DIR = './downloads/metadata';
 const CHAPTERS_DIR = './downloads/youtube-chapters';
 
+// Map meeting titles to YouTube playlist IDs using regex patterns
+const PLAYLIST_MAPPINGS = [
+  { pattern: /^City Commission/i, playlistId: process.env.PLAYLIST_CITY_COMMISSION },
+  { pattern: /^General Policy Committee/i, playlistId: process.env.PLAYLIST_GENERAL_POLICY },
+  { pattern: /^City Plan Board/i, playlistId: process.env.PLAYLIST_CITY_PLAN_BOARD },
+  // Add more mappings as needed
+];
+
 // Use environment variable for YTDLP_PATH if available, otherwise use default
 const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
 
@@ -21,6 +29,23 @@ const execAsync = promisify(exec);
  * Format the meeting date into a safe kebob case date
  */
 const formatMeetingDate = (date) => date.split(' ')[0].replace(/\//g, '-');
+
+/**
+ * Determine which playlists a meeting belongs to based on its title
+ * @param {string} meetingTitle - The title of the meeting
+ * @returns {string[]} - Array of playlist IDs (empty if no matches)
+ */
+function determinePlaylistIds(meetingTitle) {
+  const playlistIds = [];
+  
+  for (const mapping of PLAYLIST_MAPPINGS) {
+    if (mapping.pattern.test(meetingTitle) && mapping.playlistId) {
+      playlistIds.push(mapping.playlistId);
+    }
+  }
+  
+  return playlistIds;
+}
 
 /**
  * Process a date range to get meetings
@@ -513,17 +538,32 @@ async function main() {
         // now upload
         try {
           const title = `${meeting.title} - ${formatMeetingDate(meeting.startDate)} | GNV FL`
+          
+          // Determine which playlists to add the video to
+          const playlistIds = determinePlaylistIds(meeting.title);
+          if (playlistIds.length > 0) {
+            console.log(`Adding video to playlists: ${playlistIds.join(', ')}`);
+          } else {
+            console.log(`No matching playlists found for meeting: ${meeting.title}`);
+          }
 
           const ytResult = await uploadToYouTube({
             videoPath: result.downloadResult.outputPath,
             title, 
             description: result.chaptersText,
             tags: ['Gainesville'],
-            privacyStatus: 'public'
+            privacyStatus: 'public',
+            playlistIds
           })
 
           // then mark it as uploaded
-          manEntry = {...manEntry, uploaded: true, youtubeUrl: ytResult.url}
+          manEntry = {
+            ...manEntry, 
+            uploaded: true, 
+            youtubeUrl: ytResult.url,
+            playlistIds,
+            playlistResults: ytResult.playlistResults
+          }
 
           results.push(meetingResult);
         } catch(err) {

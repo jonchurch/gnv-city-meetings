@@ -100,6 +100,7 @@ async function getNewToken(oAuth2Client) {
  * @param {Array<string>} options.tags - Video tags
  * @param {string} options.categoryId - YouTube category ID
  * @param {string} options.privacyStatus - Privacy status (public, unlisted, private)
+ * @param {string|string[]} options.playlistIds - YouTube playlist ID(s) to add the video to
  * @returns {Promise<Object>} - Upload result with videoId
  */
 async function uploadToYouTube(options) {
@@ -109,7 +110,8 @@ async function uploadToYouTube(options) {
     description, 
     tags = [], 
     categoryId = '25', // News & Politics
-    privacyStatus = 'unlisted' 
+    privacyStatus = 'unlisted',
+    playlistIds = []
   } = options;
   
   try {
@@ -120,6 +122,7 @@ async function uploadToYouTube(options) {
     console.log(`Tags: ${tags.join(', ')}`);
     console.log(`Category ID: ${categoryId}`);
     console.log(`Privacy Status: ${privacyStatus}`);
+    console.log(`Playlist IDs: ${playlistIds.length > 0 ? (Array.isArray(playlistIds) ? playlistIds.join(', ') : playlistIds) : 'None'}`);
     console.log('--------------------------------\n');
     
     // Verify the video file exists
@@ -181,9 +184,54 @@ async function uploadToYouTube(options) {
     const videoId = res.data.id;
     const videoUrl = `https://youtu.be/${videoId}`;
     
+    // Add to playlists if playlist IDs were provided
+    const playlistResults = [];
+    
+    if (playlistIds.length > 0) {
+      // Convert single ID to array for consistent processing if it's not already an array
+      const playlistIdArray = Array.isArray(playlistIds) ? playlistIds : [playlistIds];
+      
+      // Filter out null/undefined playlist IDs
+      const validPlaylistIds = playlistIdArray.filter(id => id);
+      
+      for (const playlistId of validPlaylistIds) {
+        try {
+          console.log(`Adding video to playlist: ${playlistId}`);
+          const result = await youtube.playlistItems.insert({
+            part: 'snippet',
+            requestBody: {
+              snippet: {
+                playlistId: playlistId,
+                resourceId: {
+                  kind: 'youtube#video',
+                  videoId: videoId
+                }
+              }
+            }
+          });
+          console.log(`Successfully added to playlist: ${playlistId}`);
+          playlistResults.push({
+            playlistId,
+            success: true
+          });
+        } catch (playlistError) {
+          console.error(`Error adding to playlist ${playlistId}:`, playlistError);
+          if (playlistError.response) {
+            console.error('API response error:', playlistError.response.data);
+          }
+          playlistResults.push({
+            playlistId,
+            success: false,
+            error: playlistError.message
+          });
+        }
+      }
+    }
+    
     return {
       videoId,
-      url: videoUrl
+      url: videoUrl,
+      playlistResults: playlistResults.length > 0 ? playlistResults : null
     };
   } catch (error) {
     console.error('Error in upload:', error);
