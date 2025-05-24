@@ -13,7 +13,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Constants
-const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/youtube.force-ssl'  // For secure API access including playlists
+];
 const TOKEN_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '.credentials');
 const TOKEN_PATH = path.join(TOKEN_DIR, 'youtube-upload-token.json');
 
