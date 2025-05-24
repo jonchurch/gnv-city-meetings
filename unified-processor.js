@@ -39,7 +39,8 @@ function determinePlaylistIds(meetingTitle) {
   const playlistIds = [];
   
   for (const mapping of PLAYLIST_MAPPINGS) {
-    if (mapping.pattern.test(meetingTitle) && mapping.playlistId) {
+    // Only add the playlist ID if it's valid (not null, undefined, or empty string)
+    if (mapping.pattern.test(meetingTitle) && mapping.playlistId && mapping.playlistId.trim() !== '') {
       playlistIds.push(mapping.playlistId);
     }
   }

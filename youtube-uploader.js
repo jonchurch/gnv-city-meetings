@@ -191,8 +191,8 @@ async function uploadToYouTube(options) {
       // Convert single ID to array for consistent processing if it's not already an array
       const playlistIdArray = Array.isArray(playlistIds) ? playlistIds : [playlistIds];
       
-      // Filter out null/undefined playlist IDs
-      const validPlaylistIds = playlistIdArray.filter(id => id);
+      // Filter out null/undefined/empty playlist IDs
+      const validPlaylistIds = playlistIdArray.filter(id => id && typeof id === 'string' && id.trim() !== '');
       
       for (const playlistId of validPlaylistIds) {
         try {
