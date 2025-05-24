@@ -519,7 +519,7 @@ async function main() {
             title, 
             description: result.chaptersText,
             tags: ['Gainesville'],
-            privacyStatus: 'unlisted'
+            privacyStatus: 'public'
           })
 
           // then mark it as uploaded
