@@ -5,11 +5,8 @@
  * Processes one month at a time to avoid overwhelming the system
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { batchProcessMeetings } from './unified-processor.js';
 import 'dotenv/config';
-
-const execAsync = promisify(exec);
 
 // Format date to ISO string with timezone offset
 function toISOStringWithOffset(date) {
@@ -36,16 +33,18 @@ async function processMonth(year, month) {
     
     console.log(`Date range: ${startDateString} to ${endDateString}`);
     
-    // Build the command
-    const command = `node unified-processor.js --start=${startDateString} --end=${endDateString}`;
-    console.log(`Executing: ${command}`);
+    // Process meetings for this month
+    const options = {
+      startDate: startDateString,
+      endDate: endDateString,
+      skipDownload: false,
+      forceReprocess: false
+    };
     
-    // Execute the command
-    const { stdout, stderr } = await execAsync(command);
-    console.log(stdout);
-    if (stderr) console.error(stderr);
+    const results = await batchProcessMeetings(options);
     
-    return true;
+    // Return success if we processed any meetings or there were none to process
+    return results.length === 0 || results.some(r => r.success);
   } catch (error) {
     console.error(`Error processing ${year}-${month}:`, error);
     return false;

@@ -332,7 +332,7 @@ async function saveMetadata(meeting, agendaData, options = {}) {
 /**
  * Process a single meeting - extract metadata, download video, generate chapters
  */
-async function processMeeting(meeting, options = {}) {
+async function processSingleMeeting(meeting, options = {}) {
   const { skipDownload = false } = options;
   const { title, id } = meeting;
   
@@ -458,35 +458,20 @@ function filterProcessedMeetings(meetings, manifest, forceReprocess) {
 }
 
 /**
- * Main function to process meetings based on command line arguments
+ * Process a batch of meetings for a date range
+ * @param {Object} options - Processing options
+ * @param {boolean} options.skipDownload - Whether to skip downloading videos
+ * @param {boolean} options.forceReprocess - Whether to force reprocessing of meetings
+ * @param {string} options.startDate - Start date for fetching meetings
+ * @param {string} options.endDate - End date for fetching meetings
+ * @returns {Promise<Array>} - Results of processing
  */
-async function main() {
+async function batchProcessMeetings(options = {}) {
   try {
     // Create required directories
     await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
     await fs.mkdir(METADATA_DIR, { recursive: true });
     await fs.mkdir(CHAPTERS_DIR, { recursive: true });
-    
-    // Parse command line arguments
-    const args = process.argv.slice(2);
-    const options = {
-      skipDownload: args.includes('--no-download'),
-      forceReprocess: args.includes('--force'),
-      startDate: null,
-      endDate: null
-    };
-    
-    // Get start and end dates from arguments
-    const startDateArg = args.find(arg => arg.startsWith('--start='));
-    const endDateArg = args.find(arg => arg.startsWith('--end='));
-    
-    if (startDateArg) {
-      options.startDate = startDateArg.replace('--start=', '');
-    }
-    
-    if (endDateArg) {
-      options.endDate = endDateArg.replace('--end=', '');
-    }
     
     console.log(`Running with options: ${JSON.stringify(options, null, 2)}`);
     
@@ -520,7 +505,7 @@ async function main() {
       }
 
       try {
-        const result = await processMeeting(meeting, options);
+        const result = await processSingleMeeting(meeting, options);
         
         // Add to results
         const meetingResult = {
@@ -602,6 +587,40 @@ async function main() {
 
     return results;
   } catch (error) {
+    console.error('Error in processMeetings:', error);
+    throw error;
+  }
+}
+
+/**
+ * Main function to process meetings based on command line arguments
+ */
+async function main() {
+  try {
+    // Parse command line arguments
+    const args = process.argv.slice(2);
+    const options = {
+      skipDownload: args.includes('--no-download'),
+      forceReprocess: args.includes('--force'),
+      startDate: null,
+      endDate: null
+    };
+    
+    // Get start and end dates from arguments
+    const startDateArg = args.find(arg => arg.startsWith('--start='));
+    const endDateArg = args.find(arg => arg.startsWith('--end='));
+    
+    if (startDateArg) {
+      options.startDate = startDateArg.replace('--start=', '');
+    }
+    
+    if (endDateArg) {
+      options.endDate = endDateArg.replace('--end=', '');
+    }
+    
+    // Process meetings with the parsed options
+    return await batchProcessMeetings(options);
+  } catch (error) {
     console.error('Error in main:', error);
     throw error;
   }
@@ -621,5 +640,6 @@ export {
   extractAgendaWithTimestamps,
   generateYouTubeChapters,
   downloadMeeting,
-  processMeeting
+  processSingleMeeting,
+  batchProcessMeetings
 };
