@@ -17,7 +17,7 @@ const PLAYLIST_MAPPINGS = [
   { pattern: /^City Commission/i, playlistId: process.env.PLAYLIST_CITY_COMMISSION },
   { pattern: /^General Policy Committee/i, playlistId: process.env.PLAYLIST_GENERAL_POLICY },
   { pattern: /^City Plan Board/i, playlistId: process.env.PLAYLIST_CITY_PLAN_BOARD },
-  // Add more mappings as needed
+  { pattern: /^Utility Advisory Board/i, playlistId: process.env.PLAYLIST_UTILITY_ADVISORY_BOARD},
 ];
 
 // Use environment variable for YTDLP_PATH if available, otherwise use default
