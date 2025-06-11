@@ -26,6 +26,25 @@ const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__
 const execAsync = promisify(exec);
 
 /**
+ * Atomically write a file to prevent data loss on failures
+ */
+async function writeFileAtomic(filePath, content) {
+  const tempPath = filePath + '.tmp';
+  try {
+    await fs.writeFile(tempPath, content);
+    await fs.rename(tempPath, filePath);
+  } catch (error) {
+    // Clean up temp file if it exists
+    try {
+      await fs.unlink(tempPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+    throw error;
+  }
+}
+
+/**
  * Format the meeting date into a safe kebob case date
  */
 const formatMeetingDate = (date) => date.split(' ')[0].replace(/\//g, '-');
@@ -420,8 +439,8 @@ async function saveProcessedMeetingsManifest(manifest) {
     // Update last updated timestamp
     manifest.lastUpdated = new Date().toISOString();
     
-    // Write the manifest
-    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+    // Atomically write the manifest to prevent data loss
+    await writeFileAtomic(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`Updated processed meetings manifest at: ${manifestPath}`);
   } catch (error) {
     console.error('Error saving processed meetings manifest:', error);
