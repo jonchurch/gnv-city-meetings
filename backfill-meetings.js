@@ -53,11 +53,10 @@ async function processMonth(year, month) {
 
 // Main function to backfill meetings
 async function backfillMeetings() {
-  // Define the date range (January 2020 to April 2025)
-  const startYear = 2020;
-  const startMonth = 1;
+  const startYear = 2022;
+  const startMonth = 6;
   const endYear = 2025;
-  const endMonth = 4;
+  const endMonth = 7;
   
   // Process each month
   let successCount = 0;
