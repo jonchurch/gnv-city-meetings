@@ -72,23 +72,43 @@ function determinePlaylistIds(meetingTitle) {
  * If no dates provided, defaults to current month
  */
 function getDateRange(startDate, endDate) {
-  if (startDate && endDate) {
-    return {
-      start: startDate,
-      end: endDate
-    };
-  }
-
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
   const toISOStringWithOffset = (date) =>
     date.toISOString().replace('Z', '-04:00');
 
-  return {
-    start: toISOStringWithOffset(start),
-    end: toISOStringWithOffset(end),
+  let startDateObj, endDateObj;
+
+  // Parse and validate start date
+  if (startDate) {
+    startDateObj = new Date(startDate);
+    if (isNaN(startDateObj.getTime())) {
+      throw new Error(`Invalid start date: ${startDate}. Please use format YYYY-MM-DD`);
+    }
+  } else {
+    // Default to first day of current month
+    const now = new Date();
+    startDateObj = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  // Parse and validate end date
+  if (endDate) {
+    endDateObj = new Date(endDate);
+    if (isNaN(endDateObj.getTime())) {
+      throw new Error(`Invalid end date: ${endDate}. Please use format YYYY-MM-DD`);
+    }
+  } else {
+    // Default to first day of next month (end of current month)
+    const now = new Date();
+    endDateObj = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  }
+
+  // Validate that start date is not after end date
+  if (startDateObj > endDateObj) {
+    throw new Error(`Start date (${startDate}) cannot be after end date (${endDate})`);
+  }
+
+  return { 
+    start: toISOStringWithOffset(startDateObj), 
+    end: toISOStringWithOffset(endDateObj) 
   };
 }
 
