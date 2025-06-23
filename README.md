@@ -1,112 +1,211 @@
-# Gainesville City Meetings Downloader
+# Gainesville City Meetings Pipeline
 
-A Node.js tool to download video recordings of Gainesville city government meetings from the Escribe platform, extract meeting agendas with timestamps, and generate YouTube chapter markers.
+A multi-stage pipeline for scraping, processing, and publishing Gainesville city meeting videos to YouTube with automated chapter generation.
 
-## Features
+## Architecture Overview
 
-- Fetches city meetings with video recordings from the Gainesville city portal
-- Extracts agenda items with their timestamps from meeting pages
-- Downloads videos using custom fork of yt-dlp
-- Generates YouTube-compatible chapter markers for easy navigation
-- Smart tracking to avoid processing duplicates
-- Docker support for consistent environments
-- GitHub Actions workflow for automation
+This application follows a classic ETL (Extract, Transform, Load) pipeline pattern with job queue orchestration:
 
-## Requirements
-
-For local development:
-- Node.js 22 or higher
-- Python 3
-- [Custom fork of yt-dlp](https://github.com/robjwells/yt-dlp) (until [this PR](https://github.com/yt-dlp/yt-dlp/pull/11607) is merged upstream)
-- `git clone --branch escribe --single-branch https://github.com/robjwells/yt-dlp.git`
-
-For deployment:
-- Docker
-- GitHub Actions (optional)
-
-## Setup
-
-### Docker (Recommended)
-
-```bash
-# Build the Docker image
-docker build -t gnv-city-meetings .
-
-# Run with Docker
-docker run -v $(pwd)/downloads:/app/downloads gnv-city-meetings npm run process
+```
+Calendar Polling → Database → Job Queue → Workers → YouTube
 ```
 
-### Local Development
+### Core Components
 
-1. Clone this repository
-2. Install dependencies: `npm install`
-3. Install the custom yt-dlp fork: `pip install -e git+https://github.com/robjwells/yt-dlp.git#egg=yt-dlp`
-4. Update the `YTDLP_PATH` in `unified-processor.js` if needed
+- **State Database (SQLite)**: Tracks meeting status and job queue
+- **Job Queue**: File-based queue with database backing for reliability
+- **Workers**: Specialized processors for each pipeline stage
+- **CLI Tools**: Management and monitoring interfaces
 
-## Usage
+### Pipeline Stages
 
-### Process Flow
+1. **Discovery**: Poll Escribe calendar API for meetings with videos
+2. **Download**: Extract meeting videos and agenda metadata
+3. **Transform**: Generate YouTube chapters from agenda timestamps
+4. **Upload**: Publish to YouTube with metadata and playlist assignment
 
-The system works in three separate stages:
-1. Extract meeting metadata and chapter markers
-2. Download meeting videos
-3. Upload videos to YouTube (optional)
-
-### Commands
+## Quick Start
 
 ```bash
-# Complete process (metadata extraction + video download)
-npm run process
+# Install dependencies
+npm install
 
-# Metadata extraction only (no video downloads)
-npm run metadata-only
+# Initialize database (first time only)
+npm run migrate
 
-# Download videos for meetings that have metadata extracted
-npm run download-videos
+# Check pipeline status
+npm run status
 
-# Upload videos to YouTube (requires configuration)
-npm run upload-youtube
-
-# Force reprocessing of all meetings
-npm run force-process
+# Process meetings for a date range
+npm run process -- --start=2025-05-01
 ```
 
-You can specify a date range for processing:
+## Directory Structure
+
+```
+src/
+├── lib/
+│   ├── database.js          # SQLite operations and schema
+│   ├── escribe-client.js    # Escribe API client
+│   ├── youtube-client.js    # YouTube upload client
+│   └── utils.js             # Shared utilities
+├── workers/
+│   ├── calendar-poller.js   # Meeting discovery worker
+│   ├── downloader.js        # Video download worker
+│   └── uploader.js          # YouTube upload worker
+├── queue/
+│   └── job-manager.js       # Job queue management
+└── cli/
+    ├── pipeline.js          # Main orchestrator
+    ├── backfill.js          # Date-range backfill
+    └── status.js            # Pipeline monitoring
+
+data/
+├── meetings.db              # SQLite state database
+├── jobs/                    # Job queue files
+└── downloads/               # Media files and metadata
+
+scripts/
+├── migrate-manifest.js      # Import existing manifest
+└── setup.js                 # Database initialization
+```
+
+## State Management
+
+### Meeting Status Flow
+
+```
+discovered → downloading → downloaded → uploading → uploaded
+           ↘              ↘           ↘
+            failed         failed      failed
+```
+
+### Job Types
+
+- **download**: Extract video and metadata from Escribe
+- **upload**: Publish processed video to YouTube
+
+## Configuration
+
+Set these environment variables in `.env`:
 
 ```bash
-npm run process -- --start=2025-01-01T00:00:00-04:00 --end=2025-12-31T00:00:00-04:00
+# YouTube API
+GOOGLE_OAUTH_CLIENT_ID=your_client_id
+GOOGLE_OAUTH_CLIENT_SECRET=your_client_secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/oauth2callback
+
+# YouTube playlists
+PLAYLIST_CITY_COMMISSION=your_playlist_id
+PLAYLIST_GENERAL_POLICY=your_playlist_id
+PLAYLIST_CITY_PLAN_BOARD=your_playlist_id
+PLAYLIST_UTILITY_ADVISORY_BOARD=your_playlist_id
+
+# Video download
+YTDLP_PATH=/path/to/yt-dlp
 ```
 
-### Smart Processing
+## Commands
 
-The tool automatically tracks processed meetings in `./downloads/processed-meetings.json`, making it perfect for scheduled jobs - it will only process new meetings.
+### Pipeline Operations
+```bash
+npm run process              # Process current month
+npm run process -- --start=YYYY-MM-DD
+npm run process -- --start=YYYY-MM-DD --end=YYYY-MM-DD
+npm run process -- --no-download  # Metadata only
+npm run process -- --force        # Reprocess existing
+```
 
-### Output Files
+### Management
+```bash
+npm run status               # Show pipeline status
+npm run migrate              # Import existing manifest
+```
 
-Files are organized as follows:
-- Videos: `./downloads/DATE_MEETING_NAME.mp4`
-- Metadata: `./downloads/metadata/DATE_MEETING_NAME_agenda.json`
-- YouTube Chapters: `./downloads/youtube-chapters/DATE_MEETING_NAME_youtube_chapters.txt`
+### Legacy (will be replaced)
+```bash
+npm run metadata-only        # Process without downloads
+npm run force-process        # Force reprocess all
+```
 
-## GitHub Actions Integration
+## Recovery and Debugging
 
-The included workflow file (`.github/workflows/cron-download.yml`) sets up automatic processing on a schedule:
+### Pipeline Status
+```bash
+npm run status
+```
+Shows:
+- Meeting counts by status
+- Job queue statistics
+- Total pipeline throughput
 
-1. Extracts metadata and chapter markers
-2. Downloads new meeting videos
-3. Uploads to YouTube (requires configuration)
-4. Cleans up videos after upload to save space
+### Database Queries
+```sql
+-- Check failed meetings
+SELECT * FROM meetings WHERE status = 'failed';
 
-## YouTube Workflow
+-- Show recent activity
+SELECT * FROM meetings ORDER BY updated_at DESC LIMIT 10;
 
-After uploading a video to YouTube:
-1. Find the corresponding YouTube chapters file in `./downloads/youtube-chapters/`
-2. Copy the text contents
-3. Paste into the YouTube video description
-4. Save changes
+-- Job queue status
+SELECT type, status, COUNT(*) FROM jobs GROUP BY type, status;
+```
 
-YouTube will automatically recognize the timestamps as chapter markers, making it easy for viewers to navigate to specific agenda items.
+### Job Queue Files
+```bash
+# Check pending jobs
+ls data/jobs/pending/
 
-## License
+# Check failed jobs  
+ls data/jobs/failed/
+cat data/jobs/failed/*-error.json
+```
 
-ISC
+## Data Flow
+
+### Input Sources
+- **Escribe Calendar API**: Meeting discovery and metadata
+- **Escribe Meeting Pages**: Video URLs and agenda timestamps
+
+### Processing Artifacts
+- **Meeting Videos**: MP4 files (cleaned up after upload)
+- **Agenda Metadata**: JSON files with timestamp data
+- **YouTube Chapters**: Generated descriptions with time markers
+
+### Output Destinations
+- **YouTube Videos**: Public videos with chapters
+- **YouTube Playlists**: Organized by meeting type
+- **Local Database**: Processing state and history
+
+## Error Handling
+
+- **Automatic Retry**: Failed jobs are retried up to 3 times
+- **State Recovery**: Pipeline can resume from any failure point
+- **Error Logging**: Detailed error information stored with failed jobs
+- **Graceful Degradation**: Missing timestamps don't block processing
+
+## Monitoring
+
+The pipeline tracks:
+- Meeting discovery and processing rates
+- Job queue throughput and backlog
+- Error rates and failure modes
+- Disk usage and cleanup needs
+
+## Architecture Notes
+
+This system emphasizes:
+- **Reliability**: Can recover from any failure point
+- **Observability**: Clear visibility into pipeline state
+- **Maintainability**: Simple, boring solutions over clever ones
+- **Scalability**: Can handle years of historical data
+
+The architecture was designed as a classic ETL pipeline because this is a well-understood pattern for this type of data processing workflow. Each component has a single responsibility and can be tested/debugged independently.
+
+## Legacy System
+
+The original `unified-processor.js` is still functional and serves as a reference implementation. It will be gradually replaced by the new modular architecture as workers are implemented.
+
+## Contributing
+
+This is a municipal transparency tool focused on making government meetings more accessible through automated processing and publishing.

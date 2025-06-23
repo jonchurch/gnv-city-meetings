@@ -9,7 +9,10 @@
     "metadata-only": "node unified-processor.js --no-download",
     "force-process": "node unified-processor.js --force",
     "force-metadata": "node unified-processor.js --no-download --force",
-    "upload-youtube": "node youtube-uploader.js"
+    "upload-youtube": "node youtube-uploader.js",
+    "setup": "node scripts/setup.js",
+    "migrate": "node scripts/migrate-manifest.js",
+    "status": "node src/cli/status.js"
   },
   "engines": {
     "node": ">=22"
@@ -23,6 +26,8 @@
     "fs-extra": "^11.3.0",
     "google-auth-library": "^9.15.1",
     "googleapis": "^148.0.0",
-    "open": "^10.1.2"
+    "open": "^10.1.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   }
 }

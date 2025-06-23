@@ -1,9 +1,17 @@
 node_modules/
 .DS_Store
 
+# runtime data
+data/meetings.db
+data/jobs/
+
 # output files
 downloads/
 
 # config
 .env
 .credentials
+
+# logs
+logs/
+*.log
