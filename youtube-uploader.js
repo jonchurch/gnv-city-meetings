@@ -41,7 +41,7 @@ async function authorize() {
     try {
       const token = await fs.readFile(TOKEN_PATH, 'utf8');
       oAuth2Client.setCredentials(JSON.parse(token));
-      return oAuth2Client;
+      return await refreshTokenIfNeeded(oAuth2Client);
     } catch (err) {
       return getNewToken(oAuth2Client);
     }
@@ -49,6 +49,29 @@ async function authorize() {
     console.error('Error during authorization:', error);
     throw error;
   }
+}
+
+// Check if token is expired (with 5 minute buffer)
+function isTokenExpired(credentials) {
+  if (!credentials.expiry_date) return true;
+  return Date.now() >= credentials.expiry_date - 300000; // 5min buffer
+}
+
+// Refresh token if needed
+async function refreshTokenIfNeeded(oAuth2Client) {
+  try {
+    if (isTokenExpired(oAuth2Client.credentials)) {
+      console.log('Token expired, refreshing...');
+      const { credentials } = await oAuth2Client.refreshAccessToken();
+      oAuth2Client.setCredentials(credentials);
+      await fs.writeFile(TOKEN_PATH, JSON.stringify(credentials, null, 2));
+      console.log('Token refreshed and saved');
+    }
+  } catch (error) {
+    console.log('Token refresh failed, requesting new authorization...');
+    return getNewToken(oAuth2Client);
+  }
+  return oAuth2Client;
 }
 
 // Get and store new token after prompting for user authorization
@@ -84,7 +107,7 @@ async function getNewToken(oAuth2Client) {
 
     // Store the token to disk for later program executions
     await fsExtra.ensureDir(TOKEN_DIR);
-    await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens));
+    await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens, null, 2));
     console.log('Token stored to', TOKEN_PATH);
 
     return oAuth2Client;
