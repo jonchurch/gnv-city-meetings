@@ -7,7 +7,7 @@ import { uploadToYouTube } from './youtube-uploader.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
-const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetAllMeetings`;
+const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetCalendarMeetings`;
 const DOWNLOAD_DIR = './downloads';
 const METADATA_DIR = './downloads/metadata';
 const CHAPTERS_DIR = './downloads/youtube-chapters';
