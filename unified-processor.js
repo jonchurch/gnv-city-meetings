@@ -590,6 +590,9 @@ async function batchProcessMeetings(options = {}) {
             playlistResults: ytResult.playlistResults
           }
 
+          // remove the downloaded video file
+          fs.unlink(result.downloadResult.outputPath)
+
           results.push(meetingResult);
         } catch(err) {
           // mark it as processed but error upload
