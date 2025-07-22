@@ -25,30 +25,42 @@ const CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://localhost';
 
+async function loadTokenFromDisk() {
+  try {
+    const raw = await fs.readFile(TOKEN_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      console.error(`Token file not found at ${TOKEN_PATH}`);
+    } else if (err.code === 'EACCES') {
+      console.error(`Token file exists at ${TOKEN_PATH}, but cannot be read due to permissions`);
+    } else if (err instanceof SyntaxError) {
+      console.error(`Token file at ${TOKEN_PATH} could not be parsed: ${err.message}`);
+    } else {
+      console.error(`Failed to load token file at ${TOKEN_PATH}: ${err.message}`);
+    }
+    return null;
+  }
+}
+
+
 // Create an OAuth2 client with the given credentials
 async function authorize() {
-  try {
-    // Check if required environment variables are set
-    if (!CLIENT_ID || !CLIENT_SECRET) {
-      console.error('Error: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be set in .env file');
-      process.exit(1);
-    }
-
-    // Create OAuth client
-    const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
-    
-    // Check if we have previously stored a token
-    try {
-      const token = await fs.readFile(TOKEN_PATH, 'utf8');
-      oAuth2Client.setCredentials(JSON.parse(token));
-      return await refreshTokenIfNeeded(oAuth2Client);
-    } catch (err) {
-      return getNewToken(oAuth2Client);
-    }
-  } catch (error) {
-    console.error('Error during authorization:', error);
-    throw error;
+  // Validate environment variables
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error('GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be available as environment variables');
   }
+
+  const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+
+  const credentials = await loadTokenFromDisk();
+
+  if (credentials) {
+    oAuth2Client.setCredentials(credentials);
+    return ensureFreshClient(oAuth2Client);
+  }
+
+  return getNewToken(oAuth2Client);
 }
 
 // Check if token is expired (with 5 minute buffer)
@@ -58,7 +70,7 @@ function isTokenExpired(credentials) {
 }
 
 // Refresh token if needed
-async function refreshTokenIfNeeded(oAuth2Client) {
+async function ensureFreshClient(oAuth2Client) {
   try {
     if (isTokenExpired(oAuth2Client.credentials)) {
       console.log('Token expired, refreshing...');
@@ -76,6 +88,10 @@ async function refreshTokenIfNeeded(oAuth2Client) {
 
 // Get and store new token after prompting for user authorization
 async function getNewToken(oAuth2Client) {
+  if (!process.stdin.isTTY) {
+    throw new Error("No valid YouTube token and no interactive session available to complete OAuth.");
+  }
+
   try {
     // Generate an auth URL
     const authUrl = oAuth2Client.generateAuthUrl({
