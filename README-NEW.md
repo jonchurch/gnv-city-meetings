@@ -65,3 +65,25 @@ Query database:
 ```bash
 sqlite3 meetings.db "SELECT id, title, state FROM meetings ORDER BY date DESC LIMIT 10;"
 ```
+
+### New Features from Main Branch
+
+- **YouTube Playlists**: Videos automatically added to playlists based on meeting type
+- **Public Videos**: Changed from unlisted to public for better discoverability  
+- **Token Refresh**: YouTube OAuth tokens automatically refresh
+- **File Cleanup**: Optional cleanup job to manage disk space while preserving pipeline integrity
+
+### Cleanup Management
+
+The cleanup job only removes large raw video files after a configurable period, keeping smaller derived files (chapters, metadata) for reference:
+
+```bash
+# Dry run to see what would be cleaned
+npm run cleanup -- --dry-run
+
+# Clean files older than 30 days (default)
+npm run cleanup
+
+# Clean files older than 60 days
+CLEANUP_AFTER_DAYS=60 npm run cleanup
+```
