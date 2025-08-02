@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { initializeDatabase, insertMeeting, getMeeting } from './db/init.js';
-import { createQueue, QUEUE_NAMES } from './queue/config.js';
+import { createQueue } from './queue/config.js';
+import { QUEUE_NAMES } from './workflow/config.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
@@ -78,7 +79,7 @@ export async function runDiscovery(options = {}) {
   
   try {
     const db = await initializeDatabase();
-    queue = createQueue(QUEUE_NAMES.PROCESS_MEETING);
+    queue = createQueue(QUEUE_NAMES.DOWNLOAD);
     
     const meetings = await fetchMeetingsWithVideo(startDate, endDate);
     
@@ -100,15 +101,16 @@ export async function runDiscovery(options = {}) {
           step: 'discovery'
         }));
         
-        // Enqueue for processing
+        // Enqueue for download (first step in workflow)
         if (enqueueOnly) {
-          await queue.add('processMeeting', { meetingId: meeting.id }, {
-            jobId: meeting.id,
+          await queue.add('process', { meetingId: meeting.id }, {
+            jobId: `download-${meeting.id}`,
           });
           enqueuedCount++;
           console.log(JSON.stringify({
-            message: 'Enqueued meeting for processing',
+            message: 'Enqueued meeting for download',
             meeting_id: meeting.id,
+            queue: QUEUE_NAMES.DOWNLOAD,
             step: 'enqueue'
           }));
         }

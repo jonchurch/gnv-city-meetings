@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { initializeDatabase, getMeetingsByState, MeetingStates } from './db/init.js';
-import { createQueue, QUEUE_NAMES } from './queue/config.js';
+import { createQueue } from './queue/config.js';
+import { QUEUE_NAMES } from './workflow/config.js';
 import { runDiscovery } from './discover.js';
 import 'dotenv/config';
 
@@ -45,7 +46,7 @@ async function main() {
   }));
   
   const db = await initializeDatabase();
-  const queue = createQueue(QUEUE_NAMES.PROCESS_MEETING);
+  const queue = createQueue(QUEUE_NAMES.DOWNLOAD);
   
   try {
     // First, run discovery for the date range
@@ -115,8 +116,8 @@ async function main() {
       const batch = discoveredMeetings.slice(i, i + batchSize);
       
       for (const meeting of batch) {
-        await queue.add('processMeeting', { meetingId: meeting.id }, {
-          jobId: meeting.id,
+        await queue.add('process', { meetingId: meeting.id }, {
+          jobId: `download-${meeting.id}`,
         });
         enqueuedCount++;
       }

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { createWorker, createQueue, QUEUE_NAMES, connection } from './queue/config.js';
+import { createWorker, createQueue, connection } from './queue/config.js';
+import { QUEUE_NAMES } from './workflow/config.js';
+import { advanceWorkflow, handleWorkflowFailure } from './workflow/orchestrator.js';
 import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from './db/init.js';
 import { pathFor, StorageTypes } from './storage/paths.js';
 import { exec } from 'child_process';
@@ -75,8 +77,6 @@ async function processDiarizeJob(job) {
       throw new Error(`Meeting ${meetingId} not in UPLOADED state (current: ${meeting.state})`);
     }
     
-    await updateMeetingState(db, meetingId, MeetingStates.DIARIZING);
-    
     const videoPath = pathFor(StorageTypes.RAW_VIDEO, meetingId);
     const outputPath = pathFor(StorageTypes.DERIVED_DIARIZED, meetingId);
     
@@ -92,7 +92,8 @@ async function processDiarizeJob(job) {
     // Uncomment when WhisperX Docker image is ready:
     // await runWhisperX(videoPath, outputPath);
     
-    await updateMeetingState(db, meetingId, MeetingStates.DIARIZED);
+    // Advance workflow to final state
+    await advanceWorkflow(meetingId, 'UPLOADED');
     
     console.log(JSON.stringify({
       message: 'Diarization completed',
@@ -102,18 +103,7 @@ async function processDiarizeJob(job) {
     }));
     
   } catch (error) {
-    console.error(JSON.stringify({
-      message: 'Diarization failed',
-      meeting_id: meetingId,
-      job_id: job.id,
-      error: error.message,
-      step: 'diarize_error'
-    }));
-    
-    await updateMeetingState(db, meetingId, MeetingStates.FAILED, {
-      error: `Diarization failed: ${error.message}`
-    });
-    
+    await handleWorkflowFailure(meetingId, 'UPLOADED', error);
     throw error;
   } finally {
     await db.close();

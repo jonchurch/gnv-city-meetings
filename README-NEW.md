@@ -16,12 +16,25 @@ This will import your processing history into the new SQLite database.
 npm run redis:start
 ```
 
-2. In one terminal, run the worker:
+2. Start the specialized workers:
+
+**Option A: Via systemd (recommended for production):**
 ```bash
-npm run worker
+sudo systemctl start gnv-meetings-download
+sudo systemctl start gnv-meetings-extract  
+sudo systemctl start gnv-meetings-upload
+sudo systemctl start gnv-meetings-diarize
 ```
 
-3. In another terminal, discover and enqueue meetings:
+**Option B: Manually (for development):**
+```bash
+npm run worker:download  # Downloads videos
+npm run worker:extract   # Extracts agendas  
+npm run worker:upload    # Uploads to YouTube
+npm run worker:diarize   # Transcribes audio (GPU required)
+```
+
+3. Discover and enqueue meetings:
 ```bash
 # Discover current month's meetings and enqueue them
 ./discover.js --enqueue-only
@@ -32,27 +45,27 @@ npm run worker
 
 ## Architecture
 
-The pipeline now uses:
+The pipeline uses a **state machine workflow** with specialized workers:
 - SQLite database (`meetings.db`) for state tracking
-- BullMQ/Redis for job queuing
-- Separate discover and process scripts
+- BullMQ/Redis for job queuing between steps
+- Dedicated workers for each processing step
 
-### Meeting States
+### Meeting States & Workers
 
-1. `DISCOVERED` - Meeting found and inserted into DB
-2. `PROCESSING` - Worker has picked up the job
-3. `DOWNLOADING` - Video is being downloaded
-4. `UPLOADING` - Video is being uploaded to YouTube
-5. `UPLOADED` - Successfully uploaded
-6. `DIARIZING` - Being processed for transcription (future)
-7. `DIARIZED` - Transcription complete (future)
-8. `FAILED` - Processing failed
+1. `DISCOVERED` → **download-worker.js** → `DOWNLOADED`
+2. `DOWNLOADED` → **extract-worker.js** → `EXTRACTED` 
+3. `EXTRACTED` → **upload-worker.js** → `UPLOADED`
+4. `UPLOADED` → **diarize-worker.js** → `DIARIZED`
+5. `FAILED` - Processing failed at any step
 
-### Scripts
+### Components
 
-- `discover.js` - Finds meetings and adds to DB/queue
-- `process.js` - Processes a single meeting (download, extract, upload)
-- `worker.js` - BullMQ worker that runs process.js for queued jobs
+- `discover.js` - Finds meetings and enqueues download jobs
+- `workers/download-worker.js` - Downloads video files
+- `workers/extract-worker.js` - Extracts agenda and generates chapters
+- `workers/upload-worker.js` - Uploads to YouTube with playlists
+- `diarize-worker.js` - Transcribes audio (WhisperX on GPU)
+- `workflow/orchestrator.js` - Handles state transitions between steps
 
 ### Monitoring
 
