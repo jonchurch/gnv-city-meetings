@@ -6,12 +6,10 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { uploadToYouTube } from './youtube-uploader.js';
 import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from './db/init.js';
+import { pathFor, StorageTypes, ensureStorageDirs } from './storage/paths.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
-const DOWNLOAD_DIR = './downloads';
-const METADATA_DIR = './downloads/metadata';
-const CHAPTERS_DIR = './downloads/youtube-chapters';
 const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
 
 const execAsync = promisify(exec);
@@ -147,11 +145,8 @@ function generateYouTubeChapters(meeting, agendaData) {
 }
 
 async function downloadMeeting(meeting) {
-  const { id, title, meeting_url, date } = meeting;
-  const safeTitle = sanitizeFilename(title);
-  const safeDate = date.split(' ')[0].replace(/\//g, '-');
-  const filename = `${safeDate}_${safeTitle}`;
-  const outputPath = path.join(DOWNLOAD_DIR, `${filename}.mp4`);
+  const { id, meeting_url } = meeting;
+  const outputPath = pathFor(StorageTypes.RAW_VIDEO, id);
 
   const cmd = YTDLP_PATH.includes('/') ? 
     `python3 "${YTDLP_PATH}" "${meeting_url}" --output "${outputPath}"` :
@@ -160,7 +155,7 @@ async function downloadMeeting(meeting) {
   console.log(JSON.stringify({
     message: 'Downloading video',
     meeting_id: id,
-    filename,
+    output_path: outputPath,
     step: 'download'
   }));
   
@@ -177,8 +172,7 @@ async function downloadMeeting(meeting) {
     
     return {
       meetingId: id,
-      outputPath,
-      filename
+      outputPath
     };
   } catch (err) {
     console.error(JSON.stringify({
@@ -215,6 +209,20 @@ async function processMeeting(meetingId) {
     const agendaData = await extractAgendaWithTimestamps(meetingId);
     
     const chaptersText = generateYouTubeChapters(meeting, agendaData);
+    
+    // Save chapters to deterministic location
+    const chaptersPath = pathFor(StorageTypes.DERIVED_CHAPTERS, meetingId);
+    await fs.writeFile(chaptersPath, chaptersText);
+    
+    // Save metadata to deterministic location
+    const metadataPath = pathFor(StorageTypes.DERIVED_METADATA, meetingId);
+    await fs.writeFile(metadataPath, JSON.stringify({
+      meetingId,
+      title: meeting.title,
+      date: meeting.date,
+      agendaData,
+      extractedAt: new Date().toISOString()
+    }, null, 2));
     
     await updateMeetingState(db, meetingId, MeetingStates.DOWNLOADING, {
       agenda_data: agendaData,
@@ -277,9 +285,8 @@ async function main() {
   
   const meetingId = args[0];
   
-  await fs.mkdir(DOWNLOAD_DIR, { recursive: true });
-  await fs.mkdir(METADATA_DIR, { recursive: true });
-  await fs.mkdir(CHAPTERS_DIR, { recursive: true });
+  // Ensure all storage directories exist
+  await ensureStorageDirs();
   
   try {
     await processMeeting(meetingId);
