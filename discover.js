@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { initializeDatabase, insertMeeting, getMeeting } from './db/init.js';
+import { createQueue, QUEUE_NAMES } from './queue/config.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
@@ -83,13 +84,17 @@ async function main() {
     endDate = endDateArg.replace('--to=', '');
   }
 
+  let queue = null;
+  
   try {
     const db = await initializeDatabase();
+    queue = createQueue(QUEUE_NAMES.PROCESS_MEETING);
     
     const meetings = await fetchMeetingsWithVideo(startDate, endDate);
     
     let newMeetingsCount = 0;
     let existingMeetingsCount = 0;
+    let enqueuedCount = 0;
     
     for (const meeting of meetings) {
       const existing = await getMeeting(db, meeting.id);
@@ -104,6 +109,19 @@ async function main() {
           date: meeting.date,
           step: 'discovery'
         }));
+        
+        // Enqueue for processing
+        if (enqueueOnly) {
+          await queue.add('processMeeting', { meetingId: meeting.id }, {
+            jobId: meeting.id,
+          });
+          enqueuedCount++;
+          console.log(JSON.stringify({
+            message: 'Enqueued meeting for processing',
+            meeting_id: meeting.id,
+            step: 'enqueue'
+          }));
+        }
       } else {
         existingMeetingsCount++;
       }
@@ -113,11 +131,13 @@ async function main() {
       message: 'Discovery complete',
       new_meetings: newMeetingsCount,
       existing_meetings: existingMeetingsCount,
+      enqueued: enqueuedCount,
       total_found: meetings.length,
       step: 'discovery'
     }));
     
     await db.close();
+    await queue.close();
     
   } catch (error) {
     console.error(JSON.stringify({
@@ -126,6 +146,7 @@ async function main() {
       stack: error.stack,
       step: 'discovery'
     }));
+    if (queue) await queue.close();
     process.exit(1);
   }
 }
