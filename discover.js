@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parseArgs } from 'util';
 import { initializeDatabase, insertMeeting, getMeeting } from './db/init.js';
 import { createQueue } from './queue/config.js';
 import { QUEUE_NAMES } from './workflow/config.js';
@@ -71,8 +72,7 @@ async function fetchMeetingsWithVideo(startDate, endDate) {
 export async function runDiscovery(options = {}) {
   const { 
     startDate = null, 
-    endDate = null, 
-    enqueueOnly = false 
+    endDate = null 
   } = options;
 
   let queue = null;
@@ -102,18 +102,16 @@ export async function runDiscovery(options = {}) {
         }));
         
         // Enqueue for download (first step in workflow)
-        if (enqueueOnly) {
-          await queue.add('process', { meetingId: meeting.id }, {
-            jobId: `download-${meeting.id}`,
-          });
-          enqueuedCount++;
-          console.log(JSON.stringify({
-            message: 'Enqueued meeting for download',
-            meeting_id: meeting.id,
-            queue: QUEUE_NAMES.DOWNLOAD,
-            step: 'enqueue'
-          }));
-        }
+        await queue.add('process', { meetingId: meeting.id }, {
+          jobId: `download-${meeting.id}`,
+        });
+        enqueuedCount++;
+        console.log(JSON.stringify({
+          message: 'Enqueued meeting for download',
+          meeting_id: meeting.id,
+          queue: QUEUE_NAMES.DOWNLOAD,
+          step: 'enqueue'
+        }));
       } else {
         existingMeetingsCount++;
       }
@@ -144,23 +142,47 @@ export async function runDiscovery(options = {}) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const startDateArg = args.find(arg => arg.startsWith('--from='));
-  const endDateArg = args.find(arg => arg.startsWith('--to='));
-  const enqueueOnly = args.includes('--enqueue-only');
-  
-  let startDate = null;
-  let endDate = null;
-  
-  if (startDateArg) {
-    startDate = startDateArg.replace('--from=', '');
-  }
-  
-  if (endDateArg) {
-    endDate = endDateArg.replace('--to=', '');
+  const { values } = parseArgs({
+    options: {
+      from: {
+        type: 'string',
+        short: 'f'
+      },
+      to: {
+        type: 'string',
+        short: 't'
+      },
+      help: {
+        type: 'boolean',
+        short: 'h'
+      }
+    },
+    allowPositionals: false
+  });
+
+  if (values.help) {
+    console.log(`
+Discovery service for GNV City Meetings
+
+Usage: ./discover.js [options]
+
+Options:
+  -f, --from DATE         Start date for discovery (YYYY-MM-DD)
+  -t, --to DATE           End date for discovery (YYYY-MM-DD)
+  -h, --help              Show this help
+
+Examples:
+  ./discover.js                           # Discover current month
+  ./discover.js --from=2024-01-01         # Discover from date to current month end
+  ./discover.js --from=2024-01-01 --to=2024-01-31
+    `);
+    return;
   }
 
-  await runDiscovery({ startDate, endDate, enqueueOnly });
+  await runDiscovery({ 
+    startDate: values.from, 
+    endDate: values.to
+  });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

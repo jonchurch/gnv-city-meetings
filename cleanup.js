@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parseArgs } from 'util';
 import { initializeDatabase, getMeetingsByState, updateMeetingState, MeetingStates } from './db/init.js';
 import { pathFor, StorageTypes, exists } from './storage/paths.js';
 import fs from 'fs/promises';
@@ -102,31 +103,53 @@ async function cleanupOldFiles() {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.includes('--help')) {
+  const { values } = parseArgs({
+    options: {
+      'dry-run': {
+        type: 'boolean',
+        short: 'd'
+      },
+      days: {
+        type: 'string'
+      },
+      help: {
+        type: 'boolean',
+        short: 'h'
+      }
+    },
+    allowPositionals: false
+  });
+
+  if (values.help) {
     console.log(`
 Cleanup utility for processed meeting files
 
-Usage: node cleanup.js [options]
+Usage: ./cleanup.js [options]
 
 Options:
-  --help          Show this help
-  --dry-run       Show what would be deleted without actually deleting
+  -d, --dry-run           Show what would be deleted without actually deleting
+  --days N                Only clean files older than N days (default: 30)
+  -h, --help              Show this help
 
 Environment Variables:
-  CLEANUP_AFTER_DAYS=30    Only clean files older than N days (default: 30)
-  DRY_RUN=true             Enable dry run mode
+  CLEANUP_AFTER_DAYS=30   Override default cleanup age (overridden by --days)
+  DRY_RUN=true            Enable dry run mode (overridden by --dry-run)
 
 Examples:
-  node cleanup.js --dry-run
-  CLEANUP_AFTER_DAYS=60 node cleanup.js
+  ./cleanup.js --dry-run
+  ./cleanup.js --days=60
+  ./cleanup.js --days=14 --dry-run
     `);
     return;
   }
   
-  if (args.includes('--dry-run')) {
+  // Set environment variables based on arguments
+  if (values['dry-run']) {
     process.env.DRY_RUN = 'true';
+  }
+  
+  if (values.days) {
+    process.env.CLEANUP_AFTER_DAYS = values.days;
   }
   
   await cleanupOldFiles();

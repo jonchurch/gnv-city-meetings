@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parseArgs } from 'util';
 import { initializeDatabase, getMeetingsByState, MeetingStates } from './db/init.js';
 import { createQueue } from './queue/config.js';
 import { QUEUE_NAMES } from './workflow/config.js';
@@ -17,23 +18,69 @@ async function getQueueStats(queue) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const fromArg = args.find(arg => arg.startsWith('--from='));
-  const toArg = args.find(arg => arg.startsWith('--to='));
-  const batchSizeArg = args.find(arg => arg.startsWith('--batch-size='));
-  const maxQueueArg = args.find(arg => arg.startsWith('--max-queue='));
-  const dryRun = args.includes('--dry-run');
+  const { values } = parseArgs({
+    options: {
+      from: {
+        type: 'string',
+        short: 'f'
+      },
+      to: {
+        type: 'string',
+        short: 't'
+      },
+      'batch-size': {
+        type: 'string',
+        short: 'b'
+      },
+      'max-queue': {
+        type: 'string',
+        short: 'q'
+      },
+      'dry-run': {
+        type: 'boolean',
+        short: 'd'
+      },
+      help: {
+        type: 'boolean',
+        short: 'h'
+      }
+    },
+    allowPositionals: false
+  });
+
+  if (values.help) {
+    console.log(`
+Backfill utility for GNV City Meetings
+
+Usage: ./backfill.js --from=DATE [options]
+
+Options:
+  -f, --from DATE         Start date for backfill (YYYY-MM-DD) [required]
+  -t, --to DATE           End date for backfill (default: today)
+  -b, --batch-size N      Number of meetings to enqueue per batch (default: 10)
+  -q, --max-queue N       Maximum queue depth before throttling (default: 100)
+  -d, --dry-run           Show what would be processed without enqueuing
+  -h, --help              Show this help
+
+Examples:
+  ./backfill.js --from=2019-01-01
+  ./backfill.js --from=2019-01-01 --to=2020-01-01 --batch-size=5 --max-queue=50
+  ./backfill.js --from=2024-01-01 --dry-run
+    `);
+    return;
+  }
   
-  if (!fromArg) {
-    console.error('Usage: node backfill.js --from=YYYY-MM-DD [--to=YYYY-MM-DD] [--batch-size=N] [--max-queue=N] [--dry-run]');
-    console.error('Example: node backfill.js --from=2019-01-01 --batch-size=10 --max-queue=50');
+  if (!values.from) {
+    console.error('Error: --from is required');
+    console.error('Use --help for usage information');
     process.exit(1);
   }
   
-  const fromDate = fromArg.replace('--from=', '');
-  const toDate = toArg ? toArg.replace('--to=', '') : new Date().toISOString().split('T')[0];
-  const batchSize = batchSizeArg ? parseInt(batchSizeArg.replace('--batch-size=', '')) : 10;
-  const maxQueueDepth = maxQueueArg ? parseInt(maxQueueArg.replace('--max-queue=', '')) : 100;
+  const fromDate = values.from;
+  const toDate = values.to || new Date().toISOString().split('T')[0];
+  const batchSize = values['batch-size'] ? parseInt(values['batch-size']) : 10;
+  const maxQueueDepth = values['max-queue'] ? parseInt(values['max-queue']) : 100;
+  const dryRun = values['dry-run'];
   
   console.log(JSON.stringify({
     message: 'Starting backfill',
@@ -58,8 +105,7 @@ async function main() {
     if (!dryRun) {
       await runDiscovery({ 
         startDate: fromDate, 
-        endDate: toDate, 
-        enqueueOnly: false 
+        endDate: toDate
       });
     }
     
