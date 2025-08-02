@@ -13,11 +13,8 @@
     "redis:stop": "docker-compose down",
     "redis:logs": "docker-compose logs -f redis",
     "queue:ui": "npx bull-board",
-    "process": "node unified-processor.js",
-    "metadata-only": "node unified-processor.js --no-download",
-    "force-process": "node unified-processor.js --force",
-    "force-metadata": "node unified-processor.js --no-download --force",
-    "upload-youtube": "node youtube-uploader.js"
+    "legacy:process": "node unified-processor.js",
+    "legacy:upload": "node youtube-uploader.js"
   },
   "engines": {
     "node": ">=22"
