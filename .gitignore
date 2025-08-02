@@ -7,3 +7,6 @@ downloads/
 # config
 .env
 .credentials
+
+# llm
+.claude/settings.local.json
