@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 import { initializeDatabase, getMeetingsByState, MeetingStates } from './db/init.js';
 import { createQueue, QUEUE_NAMES } from './queue/config.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { runDiscovery } from './discover.js';
 import 'dotenv/config';
-
-const execAsync = promisify(exec);
 
 async function getQueueStats(queue) {
   const [waiting, active, completed, failed] = await Promise.all([
@@ -58,23 +55,11 @@ async function main() {
     }));
     
     if (!dryRun) {
-      const discoverCmd = `node discover.js --from=${fromDate} --to=${toDate}`;
-      const { stdout, stderr } = await execAsync(discoverCmd);
-      
-      if (stdout) {
-        const lines = stdout.trim().split('\n');
-        lines.forEach(line => {
-          try {
-            const parsed = JSON.parse(line);
-            console.log(JSON.stringify({
-              ...parsed,
-              step: 'backfill_discovery_output'
-            }));
-          } catch {
-            console.log(line);
-          }
-        });
-      }
+      await runDiscovery({ 
+        startDate: fromDate, 
+        endDate: toDate, 
+        enqueueOnly: false 
+      });
     }
     
     // Get all DISCOVERED meetings
