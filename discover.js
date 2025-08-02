@@ -4,7 +4,7 @@ import { createQueue, QUEUE_NAMES } from './queue/config.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
-const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetAllMeetings`;
+const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetCalendarMeetings`;
 
 function getDateRange(startDate, endDate) {
   if (startDate && endDate) {
