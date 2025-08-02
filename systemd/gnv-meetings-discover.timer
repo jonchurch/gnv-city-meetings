@@ -1,0 +1,14 @@
+[Unit]
+Description=Run GNV Meetings Discovery hourly
+Requires=gnv-meetings-discover.service
+
+[Timer]
+# Run every hour at :00
+OnCalendar=hourly
+Persistent=true
+
+# Add some randomization to avoid exact hour boundaries
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target
