@@ -6,7 +6,7 @@ Wants=redis.service docker.service
 [Service]
 Type=simple
 WorkingDirectory=/opt/gnv-city-meetings
-ExecStart=/usr/bin/node /opt/gnv-city-meetings/diarize-worker.js
+ExecStart=/usr/bin/node /opt/gnv-city-meetings/workers/diarize-worker.js
 User=gnv-meetings
 Group=gnv-meetings
 StandardOutput=journal
