@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { uploadToYouTube } from './youtube-uploader.js';
 import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from './db/init.js';
 import { pathFor, StorageTypes, ensureStorageDirs } from './storage/paths.js';
+import { createQueue, QUEUE_NAMES } from './queue/config.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
@@ -249,10 +250,18 @@ async function processMeeting(meetingId) {
       youtube_url: ytResult.url
     });
     
+    // Enqueue for diarization
+    const diarizeQueue = createQueue(QUEUE_NAMES.DIARIZE);
+    await diarizeQueue.add('diarize', { meetingId }, {
+      jobId: `diarize-${meetingId}`,
+    });
+    await diarizeQueue.close();
+    
     console.log(JSON.stringify({
       message: 'Meeting processed successfully',
       meeting_id: meetingId,
       youtube_url: ytResult.url,
+      enqueued_for_diarization: true,
       step: 'process_complete'
     }));
     

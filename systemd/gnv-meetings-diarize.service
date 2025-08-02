@@ -1,0 +1,34 @@
+[Unit]
+Description=GNV Meetings Diarization Worker (GPU)
+After=network.target redis.service docker.service
+Wants=redis.service docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gnv-city-meetings
+ExecStart=/usr/bin/node /opt/gnv-city-meetings/diarize-worker.js
+User=gnv-meetings
+Group=gnv-meetings
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gnv-meetings-diarize
+
+# Environment
+Environment="NODE_ENV=production"
+Environment="GPU_DEVICE=0"
+EnvironmentFile=-/opt/gnv-city-meetings/.env
+
+# GPU access
+SupplementaryGroups=video render
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
