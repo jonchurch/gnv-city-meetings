@@ -5,6 +5,12 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "discover": "node discover.js",
+    "worker": "node worker.js",
+    "redis:start": "./scripts/start-redis.sh",
+    "redis:stop": "docker-compose down",
+    "redis:logs": "docker-compose logs -f redis",
+    "queue:ui": "npx bull-board",
     "process": "node unified-processor.js",
     "metadata-only": "node unified-processor.js --no-download",
     "force-process": "node unified-processor.js --force",
@@ -19,10 +25,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bullmq": "^5.56.9",
     "dotenv": "^16.5.0",
     "fs-extra": "^11.3.0",
     "google-auth-library": "^9.15.1",
     "googleapis": "^148.0.0",
+    "ioredis": "^5.7.0",
     "open": "^10.1.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
