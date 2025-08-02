@@ -1,4 +1,13 @@
-# GNV City Meetings Pipeline - New Architecture
+# GNV City Meetings Pipeline
+
+## Migration from Legacy System
+
+If you have an existing `downloads/processed-meetings.json` file:
+```bash
+node scripts/migrate-from-manifest.js
+```
+
+This will import your processing history into the new SQLite database.
 
 ## Quick Start
 
