@@ -13,11 +13,44 @@ import 'dotenv/config';
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
 const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
 
+// Map meeting titles to YouTube playlist IDs using regex patterns
+const PLAYLIST_MAPPINGS = [
+  { pattern: /^City Commission/i, playlistId: process.env.PLAYLIST_CITY_COMMISSION },
+  { pattern: /^General Policy Committee/i, playlistId: process.env.PLAYLIST_GENERAL_POLICY },
+  { pattern: /^City Plan Board/i, playlistId: process.env.PLAYLIST_CITY_PLAN_BOARD },
+  { pattern: /^Utility Advisory Board/i, playlistId: process.env.PLAYLIST_UTILITY_ADVISORY_BOARD},
+];
+
 const execAsync = promisify(exec);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function sanitizeFilename(name) {
   return name.replace(/[\/\\?%*:|"<>]/g, '-').replace(/\s+/g, '_');
+}
+
+/**
+ * Format the meeting date into a safe kebob case date
+ */
+function formatMeetingDate(date) {
+  return date.split(' ')[0].replace(/\//g, '-');
+}
+
+/**
+ * Determine which playlists a meeting belongs to based on its title
+ * @param {string} meetingTitle - The title of the meeting
+ * @returns {string[]} - Array of playlist IDs (empty if no matches)
+ */
+function determinePlaylistIds(meetingTitle) {
+  const playlistIds = [];
+  
+  for (const mapping of PLAYLIST_MAPPINGS) {
+    // Only add the playlist ID if it's valid (not null, undefined, or empty string)
+    if (mapping.pattern.test(meetingTitle) && mapping.playlistId && mapping.playlistId.trim() !== '') {
+      playlistIds.push(mapping.playlistId);
+    }
+  }
+  
+  return playlistIds;
 }
 
 function formatTime(ms) {
@@ -236,14 +269,33 @@ async function processMeeting(meetingId) {
       video_path: downloadResult.outputPath
     });
     
-    const title = `${meeting.title} - ${meeting.date} | GNV FL`;
+    const title = `${meeting.title} - ${formatMeetingDate(meeting.date)} | GNV FL`;
+    
+    // Determine which playlists to add the video to
+    const playlistIds = determinePlaylistIds(meeting.title);
+    if (playlistIds.length > 0) {
+      console.log(JSON.stringify({
+        message: 'Adding video to playlists',
+        meeting_id: meetingId,
+        playlist_ids: playlistIds,
+        step: 'upload'
+      }));
+    } else {
+      console.log(JSON.stringify({
+        message: 'No matching playlists found',
+        meeting_id: meetingId,
+        meeting_title: meeting.title,
+        step: 'upload'
+      }));
+    }
     
     const ytResult = await uploadToYouTube({
       videoPath: downloadResult.outputPath,
       title,
       description: chaptersText,
       tags: ['Gainesville'],
-      privacyStatus: 'unlisted'
+      privacyStatus: 'public',
+      playlistIds
     });
     
     await updateMeetingState(db, meetingId, MeetingStates.UPLOADED, {

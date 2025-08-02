@@ -13,7 +13,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Constants
-const SCOPES = ['https://www.googleapis.com/auth/youtube.upload'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/youtube.force-ssl'  // For secure API access including playlists
+];
 const TOKEN_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '.credentials');
 const TOKEN_PATH = path.join(TOKEN_DIR, 'youtube-upload-token.json');
 
@@ -22,34 +25,73 @@ const CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
 const REDIRECT_URI = process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://localhost';
 
+async function loadTokenFromDisk() {
+  try {
+    const raw = await fs.readFile(TOKEN_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      console.error(`Token file not found at ${TOKEN_PATH}`);
+    } else if (err.code === 'EACCES') {
+      console.error(`Token file exists at ${TOKEN_PATH}, but cannot be read due to permissions`);
+    } else if (err instanceof SyntaxError) {
+      console.error(`Token file at ${TOKEN_PATH} could not be parsed: ${err.message}`);
+    } else {
+      console.error(`Failed to load token file at ${TOKEN_PATH}: ${err.message}`);
+    }
+    return null;
+  }
+}
+
+
 // Create an OAuth2 client with the given credentials
 async function authorize() {
-  try {
-    // Check if required environment variables are set
-    if (!CLIENT_ID || !CLIENT_SECRET) {
-      console.error('Error: GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be set in .env file');
-      process.exit(1);
-    }
+  // Validate environment variables
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    throw new Error('GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be available as environment variables');
+  }
 
-    // Create OAuth client
-    const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
-    
-    // Check if we have previously stored a token
-    try {
-      const token = await fs.readFile(TOKEN_PATH, 'utf8');
-      oAuth2Client.setCredentials(JSON.parse(token));
-      return oAuth2Client;
-    } catch (err) {
-      return getNewToken(oAuth2Client);
+  const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+
+  const credentials = await loadTokenFromDisk();
+
+  if (credentials) {
+    oAuth2Client.setCredentials(credentials);
+    return ensureFreshClient(oAuth2Client);
+  }
+
+  return getNewToken(oAuth2Client);
+}
+
+// Check if token is expired (with 5 minute buffer)
+function isTokenExpired(credentials) {
+  if (!credentials.expiry_date) return true;
+  return Date.now() >= credentials.expiry_date - 300000; // 5min buffer
+}
+
+// Refresh token if needed
+async function ensureFreshClient(oAuth2Client) {
+  try {
+    if (isTokenExpired(oAuth2Client.credentials)) {
+      console.log('Token expired, refreshing...');
+      const { credentials } = await oAuth2Client.refreshAccessToken();
+      oAuth2Client.setCredentials(credentials);
+      await fs.writeFile(TOKEN_PATH, JSON.stringify(credentials, null, 2));
+      console.log('Token refreshed and saved');
     }
   } catch (error) {
-    console.error('Error during authorization:', error);
-    throw error;
+    console.log('Token refresh failed, requesting new authorization...');
+    return getNewToken(oAuth2Client);
   }
+  return oAuth2Client;
 }
 
 // Get and store new token after prompting for user authorization
 async function getNewToken(oAuth2Client) {
+  if (!process.stdin.isTTY) {
+    throw new Error("No valid YouTube token and no interactive session available to complete OAuth.");
+  }
+
   try {
     // Generate an auth URL
     const authUrl = oAuth2Client.generateAuthUrl({
@@ -81,7 +123,7 @@ async function getNewToken(oAuth2Client) {
 
     // Store the token to disk for later program executions
     await fsExtra.ensureDir(TOKEN_DIR);
-    await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens));
+    await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens, null, 2));
     console.log('Token stored to', TOKEN_PATH);
 
     return oAuth2Client;
@@ -100,6 +142,7 @@ async function getNewToken(oAuth2Client) {
  * @param {Array<string>} options.tags - Video tags
  * @param {string} options.categoryId - YouTube category ID
  * @param {string} options.privacyStatus - Privacy status (public, unlisted, private)
+ * @param {string|string[]} options.playlistIds - YouTube playlist ID(s) to add the video to
  * @returns {Promise<Object>} - Upload result with videoId
  */
 async function uploadToYouTube(options) {
@@ -109,7 +152,8 @@ async function uploadToYouTube(options) {
     description, 
     tags = [], 
     categoryId = '25', // News & Politics
-    privacyStatus = 'unlisted' 
+    privacyStatus = 'unlisted',
+    playlistIds = []
   } = options;
   
   try {
@@ -120,6 +164,7 @@ async function uploadToYouTube(options) {
     console.log(`Tags: ${tags.join(', ')}`);
     console.log(`Category ID: ${categoryId}`);
     console.log(`Privacy Status: ${privacyStatus}`);
+    console.log(`Playlist IDs: ${playlistIds.length > 0 ? (Array.isArray(playlistIds) ? playlistIds.join(', ') : playlistIds) : 'None'}`);
     console.log('--------------------------------\n');
     
     // Verify the video file exists
@@ -181,9 +226,54 @@ async function uploadToYouTube(options) {
     const videoId = res.data.id;
     const videoUrl = `https://youtu.be/${videoId}`;
     
+    // Add to playlists if playlist IDs were provided
+    const playlistResults = [];
+    
+    if (playlistIds.length > 0) {
+      // Convert single ID to array for consistent processing if it's not already an array
+      const playlistIdArray = Array.isArray(playlistIds) ? playlistIds : [playlistIds];
+      
+      // Filter out null/undefined/empty playlist IDs
+      const validPlaylistIds = playlistIdArray.filter(id => id && typeof id === 'string' && id.trim() !== '');
+      
+      for (const playlistId of validPlaylistIds) {
+        try {
+          console.log(`Adding video to playlist: ${playlistId}`);
+          const result = await youtube.playlistItems.insert({
+            part: 'snippet',
+            requestBody: {
+              snippet: {
+                playlistId: playlistId,
+                resourceId: {
+                  kind: 'youtube#video',
+                  videoId: videoId
+                }
+              }
+            }
+          });
+          console.log(`Successfully added to playlist: ${playlistId}`);
+          playlistResults.push({
+            playlistId,
+            success: true
+          });
+        } catch (playlistError) {
+          console.error(`Error adding to playlist ${playlistId}:`, playlistError);
+          if (playlistError.response) {
+            console.error('API response error:', playlistError.response.data);
+          }
+          playlistResults.push({
+            playlistId,
+            success: false,
+            error: playlistError.message
+          });
+        }
+      }
+    }
+    
     return {
       videoId,
-      url: videoUrl
+      url: videoUrl,
+      playlistResults: playlistResults.length > 0 ? playlistResults : null
     };
   } catch (error) {
     console.error('Error in upload:', error);
