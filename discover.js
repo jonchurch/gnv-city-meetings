@@ -67,22 +67,12 @@ async function fetchMeetingsWithVideo(startDate, endDate) {
   return meetingsWithVideo;
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const startDateArg = args.find(arg => arg.startsWith('--from='));
-  const endDateArg = args.find(arg => arg.startsWith('--to='));
-  const enqueueOnly = args.includes('--enqueue-only');
-  
-  let startDate = null;
-  let endDate = null;
-  
-  if (startDateArg) {
-    startDate = startDateArg.replace('--from=', '');
-  }
-  
-  if (endDateArg) {
-    endDate = endDateArg.replace('--to=', '');
-  }
+export async function runDiscovery(options = {}) {
+  const { 
+    startDate = null, 
+    endDate = null, 
+    enqueueOnly = false 
+  } = options;
 
   let queue = null;
   
@@ -149,6 +139,26 @@ async function main() {
     if (queue) await queue.close();
     process.exit(1);
   }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const startDateArg = args.find(arg => arg.startsWith('--from='));
+  const endDateArg = args.find(arg => arg.startsWith('--to='));
+  const enqueueOnly = args.includes('--enqueue-only');
+  
+  let startDate = null;
+  let endDate = null;
+  
+  if (startDateArg) {
+    startDate = startDateArg.replace('--from=', '');
+  }
+  
+  if (endDateArg) {
+    endDate = endDateArg.replace('--to=', '');
+  }
+
+  await runDiscovery({ startDate, endDate, enqueueOnly });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
