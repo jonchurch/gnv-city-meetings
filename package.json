@@ -7,6 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "discover": "node discover.js",
     "worker": "node worker.js",
+    "worker:diarize": "node diarize-worker.js",
     "backfill": "node backfill.js",
     "redis:start": "./scripts/start-redis.sh",
     "redis:stop": "docker-compose down",
