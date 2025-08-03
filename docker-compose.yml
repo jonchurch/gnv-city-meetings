@@ -8,7 +8,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --bind 0.0.0.0
     restart: unless-stopped
 
 volumes:

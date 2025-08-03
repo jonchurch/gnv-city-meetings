@@ -32,6 +32,7 @@ sudo -u gnv-meetings npm install --production
 sudo systemctl daemon-reload
 
 # Enable services
+sudo systemctl enable gnv-meetings-fileserver.service
 sudo systemctl enable gnv-meetings-download.service
 sudo systemctl enable gnv-meetings-extract.service
 sudo systemctl enable gnv-meetings-upload.service
@@ -39,6 +40,7 @@ sudo systemctl enable gnv-meetings-diarize.service
 sudo systemctl enable gnv-meetings-discover.timer
 
 # Start services
+sudo systemctl start gnv-meetings-fileserver.service
 sudo systemctl start gnv-meetings-download.service
 sudo systemctl start gnv-meetings-extract.service
 sudo systemctl start gnv-meetings-upload.service
@@ -50,6 +52,7 @@ sudo systemctl start gnv-meetings-discover.timer
 
 Check service status:
 ```bash
+sudo systemctl status gnv-meetings-fileserver
 sudo systemctl status gnv-meetings-download
 sudo systemctl status gnv-meetings-extract  
 sudo systemctl status gnv-meetings-upload
@@ -59,7 +62,8 @@ sudo systemctl status gnv-meetings-discover.timer
 
 View logs:
 ```bash
-# Individual worker logs
+# Individual service logs
+sudo journalctl -u gnv-meetings-fileserver -f
 sudo journalctl -u gnv-meetings-download -f
 sudo journalctl -u gnv-meetings-extract -f
 sudo journalctl -u gnv-meetings-upload -f
@@ -68,8 +72,8 @@ sudo journalctl -u gnv-meetings-diarize -f
 # Discovery logs
 sudo journalctl -u gnv-meetings-discover -f
 
-# All workers combined
-sudo journalctl -u gnv-meetings-download -u gnv-meetings-extract -u gnv-meetings-upload -u gnv-meetings-diarize -f
+# All services combined
+sudo journalctl -u gnv-meetings-fileserver -u gnv-meetings-download -u gnv-meetings-extract -u gnv-meetings-upload -u gnv-meetings-diarize -f
 
 # Last 100 lines
 sudo journalctl -u gnv-meetings-download -n 100

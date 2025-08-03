@@ -1,0 +1,36 @@
+[Unit]
+Description=GNV Meetings File Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gnv-city-meetings
+ExecStart=/usr/bin/node /opt/gnv-city-meetings/fileserver.js
+User=gnv-meetings
+Group=gnv-meetings
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gnv-meetings-fileserver
+
+# Environment
+Environment="NODE_ENV=production"
+EnvironmentFile=-/opt/gnv-city-meetings/.env
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Security
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/gnv-city-meetings
+
+[Install]
+WantedBy=multi-user.target
