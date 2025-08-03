@@ -5,11 +5,20 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "process": "node unified-processor.js",
-    "metadata-only": "node unified-processor.js --no-download",
-    "force-process": "node unified-processor.js --force",
-    "force-metadata": "node unified-processor.js --no-download --force",
-    "upload-youtube": "node youtube-uploader.js"
+    "discover": "node discover.js",
+    "worker": "node worker.js",
+    "worker:download": "node workers/download-worker.js",
+    "worker:extract": "node workers/extract-worker.js",
+    "worker:upload": "node workers/upload-worker.js",
+    "worker:diarize": "node workers/diarize-worker.js",
+    "backfill": "node backfill.js",
+    "cleanup": "node cleanup.js",
+    "redis:start": "./scripts/start-redis.sh",
+    "redis:stop": "docker-compose down",
+    "redis:logs": "docker-compose logs -f redis",
+    "queue:ui": "npx bull-board",
+    "legacy:process": "node unified-processor.js",
+    "legacy:upload": "node youtube-uploader.js"
   },
   "engines": {
     "node": ">=22"
@@ -19,10 +28,17 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bullmq": "^5.56.9",
     "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "form-data": "^4.0.4",
     "fs-extra": "^11.3.0",
     "google-auth-library": "^9.15.1",
     "googleapis": "^148.0.0",
-    "open": "^10.1.2"
+    "ioredis": "^5.7.0",
+    "multer": "^2.0.2",
+    "open": "^10.1.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   }
 }

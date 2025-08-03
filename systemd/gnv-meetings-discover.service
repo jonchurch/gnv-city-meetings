@@ -1,0 +1,24 @@
+[Unit]
+Description=GNV Meetings Discovery Service
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/gnv-city-meetings
+ExecStartPre=/usr/bin/flock -n /tmp/gnv-meetings-discover.lock -c 'echo "Acquired lock"'
+ExecStart=/usr/bin/flock -n /tmp/gnv-meetings-discover.lock /usr/bin/node /opt/gnv-city-meetings/discover.js --enqueue-only
+User=gnv-meetings
+Group=gnv-meetings
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gnv-meetings-discover
+
+# Environment
+Environment="NODE_ENV=production"
+EnvironmentFile=-/opt/gnv-city-meetings/.env
+
+# Restart policy
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

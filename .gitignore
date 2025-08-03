@@ -4,6 +4,12 @@ node_modules/
 # output files
 downloads/
 
+# database
+meetings.db
+
 # config
 .env
 .credentials
+
+# llm
+.claude/settings.local.json

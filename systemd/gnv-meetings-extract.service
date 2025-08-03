@@ -1,0 +1,30 @@
+[Unit]
+Description=GNV Meetings Extract Worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gnv-city-meetings
+ExecStart=/usr/bin/node /opt/gnv-city-meetings/workers/extract-worker.js
+User=gnv-meetings
+Group=gnv-meetings
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gnv-meetings-extract
+
+# Environment
+Environment="NODE_ENV=production"
+EnvironmentFile=-/opt/gnv-city-meetings/.env
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
