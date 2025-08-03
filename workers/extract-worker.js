@@ -5,7 +5,11 @@ import { pathFor, StorageTypes } from '../storage/paths.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
 import fs from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import 'dotenv/config';
+
+const execAsync = promisify(exec);
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
 
@@ -26,6 +30,53 @@ function formatTime(ms) {
 
 function formatMeetingDate(date) {
   return date.split(' ')[0].replace(/\//g, '-');
+}
+
+async function extractAudio(videoPath, audioPath) {
+  console.log(JSON.stringify({
+    message: 'Extracting audio from video',
+    video_path: videoPath,
+    audio_path: audioPath,
+    step: 'audio_extract_start'
+  }));
+  
+  try {
+    // Ensure output directory exists
+    const audioDir = audioPath.substring(0, audioPath.lastIndexOf('/'));
+    await fs.mkdir(audioDir, { recursive: true });
+    
+    // Extract audio using ffmpeg
+    // -i: input file
+    // -vn: no video
+    // -acodec copy: copy audio codec (fast, no re-encoding)
+    // -y: overwrite if exists
+    const command = `ffmpeg -i "${videoPath}" -vn -acodec copy -y "${audioPath}"`;
+    
+    const { stdout, stderr } = await execAsync(command, {
+      maxBuffer: 10 * 1024 * 1024 // 10MB buffer for ffmpeg output
+    });
+    
+    // Check if file was created
+    const stats = await fs.stat(audioPath);
+    
+    console.log(JSON.stringify({
+      message: 'Audio extracted successfully',
+      audio_path: audioPath,
+      size_mb: (stats.size / (1024 * 1024)).toFixed(2),
+      step: 'audio_extract_complete'
+    }));
+    
+    return audioPath;
+    
+  } catch (error) {
+    console.error(JSON.stringify({
+      message: 'Audio extraction failed',
+      error: error.message,
+      stderr: error.stderr,
+      step: 'audio_extract_error'
+    }));
+    throw error;
+  }
 }
 
 async function extractAgendaWithTimestamps(meetingId) {
@@ -210,6 +261,22 @@ async function processExtractJob(job) {
   try {
     // Extract agenda and generate chapters
     const result = await extractMeetingData(meetingId);
+    
+    // Extract audio from video for diarization
+    const videoPath = pathFor(StorageTypes.RAW_VIDEO, meetingId);
+    const audioPath = pathFor(StorageTypes.DERIVED_AUDIO, meetingId);
+    
+    try {
+      await extractAudio(videoPath, audioPath);
+    } catch (audioError) {
+      // Log error but don't fail the job - diarization is optional
+      console.error(JSON.stringify({
+        message: 'Audio extraction failed but continuing',
+        meeting_id: meetingId,
+        error: audioError.message,
+        step: 'audio_extract_warning'
+      }));
+    }
     
     // Advance to next step
     await advanceWorkflow(meetingId, 'DOWNLOADED', {

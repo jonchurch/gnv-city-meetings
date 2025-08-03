@@ -1,15 +1,14 @@
 #!/usr/bin/env node
-import { createWorker, createQueue, connection } from './queue/config.js';
-import { QUEUE_NAMES } from './workflow/config.js';
-import { advanceWorkflow, handleWorkflowFailure } from './workflow/orchestrator.js';
-import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from './db/init.js';
+import { createWorker, createQueue, connection } from '../queue/config.js';
+import { QUEUE_NAMES } from '../workflow/config.js';
+import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
+import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from '../db/init.js';
+import { readFile, writeFile, StorageTypes } from '../storage/paths.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
-import fetch from 'node-fetch';
-import FormData from 'form-data';
 import 'dotenv/config';
 
 const execAsync = promisify(exec);
@@ -19,67 +18,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WHISPERX_IMAGE = process.env.WHISPERX_IMAGE || 'ghcr.io/jim60105/whisperx:latest';
 const GPU_DEVICE = process.env.GPU_DEVICE || '0';
 const HF_TOKEN = process.env.HF_TOKEN;
-const FILE_SERVER_HOST = process.env.FILE_SERVER_HOST || 'muadib';
-const FILE_SERVER_PORT = process.env.FILE_SERVER_PORT || '3000';
-
-// File transfer functions
-async function downloadFile(url, localPath) {
-  console.log(JSON.stringify({
-    message: 'Downloading file',
-    url,
-    local_path: localPath,
-    step: 'download_start'
-  }));
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
-  }
-  
-  const buffer = await response.buffer();
-  await fs.writeFile(localPath, buffer);
-  
-  console.log(JSON.stringify({
-    message: 'File downloaded successfully',
-    local_path: localPath,
-    size_bytes: buffer.length,
-    step: 'download_complete'
-  }));
-}
-
-async function uploadFile(localPath, type, meetingId) {
-  const form = new FormData();
-  form.append('file', fs.createReadStream(localPath));
-  
-  const uploadUrl = `http://${FILE_SERVER_HOST}:${FILE_SERVER_PORT}/upload/${type}/${meetingId}`;
-  
-  console.log(JSON.stringify({
-    message: 'Uploading file',
-    local_path: localPath,
-    upload_url: uploadUrl.replace(FILE_SERVER_HOST, '[HOST]'), // Don't log internal hostnames
-    step: 'upload_start'
-  }));
-  
-  const response = await fetch(uploadUrl, {
-    method: 'POST',
-    body: form
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to upload file: ${response.status} ${response.statusText} - ${errorText}`);
-  }
-  
-  const result = await response.json();
-  
-  console.log(JSON.stringify({
-    message: 'File uploaded successfully',
-    result,
-    step: 'upload_complete'
-  }));
-  
-  return result;
-}
 
 async function runWhisperX(audioPath, outputPath) {
   if (!HF_TOKEN) {
@@ -156,7 +94,7 @@ async function processDiarizeJob(job) {
   const tempDir = `/tmp/diarize_${meetingId}_${Date.now()}`;
   await fs.mkdir(tempDir, { recursive: true });
   
-  const localAudioPath = path.join(tempDir, `${meetingId}_audio.mp3`);
+  const localAudioPath = path.join(tempDir, `${meetingId}_audio.m4a`);
   const localOutputPath = path.join(tempDir, `${meetingId}_diarized.json`);
   
   try {
@@ -170,18 +108,15 @@ async function processDiarizeJob(job) {
       throw new Error(`Meeting ${meetingId} not in UPLOADED state (current: ${meeting.state})`);
     }
     
-    // 1. Download audio file from file server
-    const audioFileName = `${meetingId.replace(/[^a-zA-Z0-9]/g, '_')}.mp3`;
-    const audioUrl = `http://${FILE_SERVER_HOST}:${FILE_SERVER_PORT}/files/raw/audio/${audioFileName}`;
-    
+    // 1. Download extracted audio file from file server
     console.log(JSON.stringify({
-      message: 'Downloading audio for diarization',
+      message: 'Downloading extracted audio for diarization',
       meeting_id: meetingId,
-      audio_url: audioUrl.replace(FILE_SERVER_HOST, '[HOST]'),
+      local_path: localAudioPath,
       step: 'diarize_download'
     }));
     
-    await downloadFile(audioUrl, localAudioPath);
+    await readFile(StorageTypes.DERIVED_AUDIO, meetingId, localAudioPath);
     
     // 2. Run WhisperX diarization
     console.log(JSON.stringify({
@@ -215,7 +150,7 @@ async function processDiarizeJob(job) {
       step: 'diarize_upload'
     }));
     
-    await uploadFile(localOutputPath, 'derived_diarized', meetingId);
+    await writeFile(localOutputPath, StorageTypes.DERIVED_DIARIZED, meetingId);
     
     // 5. Advance workflow to next state
     await advanceWorkflow(meetingId, 'UPLOADED');
@@ -265,7 +200,6 @@ async function main() {
     message: 'Starting diarization worker',
     queue: QUEUE_NAMES.DIARIZE,
     gpu_device: GPU_DEVICE,
-    file_server: `${FILE_SERVER_HOST}:${FILE_SERVER_PORT}`,
     whisperx_image: WHISPERX_IMAGE,
     step: 'worker_start'
   }));

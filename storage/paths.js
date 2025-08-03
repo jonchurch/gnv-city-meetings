@@ -21,6 +21,7 @@ export const StorageTypes = {
   RAW_AGENDA: 'raw_agenda',
   RAW_TRANSCRIPT: 'raw_transcript',
   DERIVED_CHAPTERS: 'derived_chapters',
+  DERIVED_AUDIO: 'derived_audio',
   DERIVED_DIARIZED: 'derived_diarized',
   DERIVED_METADATA: 'derived_metadata',
 };
@@ -50,6 +51,9 @@ export function pathFor(type, meetingId, options = {}) {
       
     case StorageTypes.DERIVED_CHAPTERS:
       return path.join(DERIVED_DIR, 'chapters', `${safeId}_chapters.txt`);
+      
+    case StorageTypes.DERIVED_AUDIO:
+      return path.join(DERIVED_DIR, 'audio', `${safeId}.m4a`);
       
     case StorageTypes.DERIVED_DIARIZED:
       return path.join(DERIVED_DIR, 'diarized', `${safeId}_diarized.json`);
