@@ -2,7 +2,8 @@
 import { createWorker, createQueue, connection } from '../queue/config.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
-import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from '../db/init.js';
+import { getMeeting, updateMeetingState } from '../api/meetings-client.js';
+import { MeetingStates } from '../db/init.js';
 import { readFile, writeFile, StorageTypes } from '../storage/paths.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -80,7 +81,6 @@ async function runWhisperX(audioPath, outputPath) {
 
 async function processDiarizeJob(job) {
   const { meetingId } = job.data;
-  const db = await initializeDatabase();
   
   console.log(JSON.stringify({
     message: 'Starting diarization job',
@@ -106,7 +106,7 @@ async function processDiarizeJob(job) {
   const localOutputPath = path.join(tempDir, `${meetingId}_diarized.json`);
   
   try {
-    const meeting = await getMeeting(db, meetingId);
+    const meeting = await getMeeting(meetingId);
     
     if (!meeting) {
       throw new Error(`Meeting ${meetingId} not found`);
@@ -198,8 +198,6 @@ async function processDiarizeJob(job) {
         step: 'cleanup_warning'
       }));
     }
-    
-    await db.close();
   }
 }
 

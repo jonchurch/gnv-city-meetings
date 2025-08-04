@@ -29,6 +29,7 @@
   "description": "",
   "dependencies": {
     "bullmq": "^5.56.9",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "form-data": "^4.0.4",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createWorker, connection } from '../queue/config.js';
-import { initializeDatabase, getMeeting } from '../db/init.js';
+import { getMeeting } from '../api/meetings-client.js';
 import { pathFor, StorageTypes } from '../storage/paths.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
@@ -191,10 +191,8 @@ function generateYouTubeChapters(meeting, agendaData) {
 }
 
 async function extractMeetingData(meetingId) {
-  const db = await initializeDatabase();
-  
   try {
-    const meeting = await getMeeting(db, meetingId);
+    const meeting = await getMeeting(meetingId);
     
     if (!meeting) {
       throw new Error(`Meeting ${meetingId} not found`);
@@ -243,8 +241,8 @@ async function extractMeetingData(meetingId) {
       metadataPath
     };
     
-  } finally {
-    await db.close();
+  } catch (error) {
+    throw error;
   }
 }
 

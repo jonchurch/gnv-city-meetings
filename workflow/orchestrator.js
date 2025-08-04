@@ -1,5 +1,5 @@
 import { WORKFLOW_STEPS, QUEUE_NAMES } from './config.js';
-import { initializeDatabase, updateMeetingState } from '../db/init.js';
+import { updateMeetingState } from '../api/meetings-client.js';
 import { createQueue } from '../queue/config.js';
 
 /**
@@ -26,9 +26,7 @@ export async function advanceWorkflow(meetingId, currentState, additionalData = 
   
   // Update meeting state
   if (step.nextState) {
-    const db = await initializeDatabase();
-    await updateMeetingState(db, meetingId, step.nextState, additionalData);
-    await db.close();
+    await updateMeetingState(meetingId, step.nextState, additionalData);
     
     // Get the next step's queue
     const nextStep = WORKFLOW_STEPS[step.nextState];
@@ -66,12 +64,10 @@ export async function handleWorkflowFailure(meetingId, currentState, error) {
     step: 'workflow_failure'
   }));
   
-  const db = await initializeDatabase();
-  await updateMeetingState(db, meetingId, 'FAILED', {
+  await updateMeetingState(meetingId, 'FAILED', {
     error: error.message,
     failed_at_state: currentState
   });
-  await db.close();
 }
 
 /**
@@ -94,9 +90,7 @@ export async function restartWorkflow(meetingId, fromState) {
   }));
   
   // Reset to the starting state
-  const db = await initializeDatabase();
-  await updateMeetingState(db, meetingId, fromState);
-  await db.close();
+  await updateMeetingState(meetingId, fromState);
   
   // Enqueue the appropriate job
   if (step.queue) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createWorker, connection } from '../queue/config.js';
-import { initializeDatabase, getMeeting } from '../db/init.js';
+import { getMeeting } from '../api/meetings-client.js';
 import { pathFor, StorageTypes, ensureStorageDirs } from '../storage/paths.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
@@ -12,10 +12,8 @@ const execAsync = promisify(exec);
 const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__main__.py';
 
 async function downloadVideo(meetingId) {
-  const db = await initializeDatabase();
-  
   try {
-    const meeting = await getMeeting(db, meetingId);
+    const meeting = await getMeeting(meetingId);
     
     if (!meeting) {
       throw new Error(`Meeting ${meetingId} not found`);
@@ -54,8 +52,8 @@ async function downloadVideo(meetingId) {
     
     return { outputPath };
     
-  } finally {
-    await db.close();
+  } catch (error) {
+    throw error;
   }
 }
 
