@@ -91,7 +91,14 @@ async function processDiarizeJob(job) {
   
   // Temp file paths
   const tempDir = `/tmp/diarize_${meetingId}_${Date.now()}`;
-  await fs.mkdir(tempDir, { recursive: true });
+  try {
+    await fs.mkdir(tempDir, { recursive: true });
+  } catch(err) {
+    console.error("Error creating tmpdir")
+    console.error(err)
+    await handleWorkflowFailure(meetingId, 'UPLOADED', err);
+    throw err;
+  }
   
   const localAudioPath = path.join(tempDir, `${meetingId}_audio.m4a`);
   const localOutputPath = path.join(tempDir, `${meetingId}_diarized.json`);
