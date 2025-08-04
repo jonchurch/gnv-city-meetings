@@ -10,10 +10,10 @@ export const connection = new Redis({
   maxRetriesPerRequest: null,
 });
 
-export const QUEUE_NAMES = {
-  PROCESS_MEETING: 'processMeeting',
-  DIARIZE: 'diarize',
-};
+// export const QUEUE_NAMES = {
+//   PROCESS_MEETING: 'processMeeting',
+//   DIARIZE: 'diarize',
+// };
 
 export const createQueue = (queueName) => {
   return new Queue(queueName, {

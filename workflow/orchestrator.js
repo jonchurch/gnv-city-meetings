@@ -1,5 +1,5 @@
 import { WORKFLOW_STEPS, QUEUE_NAMES } from './config.js';
-import { updateMeetingState } from '../db/init.js';
+import { initializeDatabase, updateMeetingState } from '../db/init.js';
 import { createQueue } from '../queue/config.js';
 
 /**
@@ -26,24 +26,27 @@ export async function advanceWorkflow(meetingId, currentState, additionalData = 
   
   // Update meeting state
   if (step.nextState) {
-    await updateMeetingState(meetingId, step.nextState, additionalData);
-  }
-  
-  // Enqueue next job if there is one
-  if (step.queue) {
-    const queue = createQueue(step.queue);
-    await queue.add('process', { meetingId }, {
-      jobId: `${step.queue}-${meetingId}`,
-    });
-    await queue.close();
+    const db = await initializeDatabase();
+    await updateMeetingState(db, meetingId, step.nextState, additionalData);
+    await db.close();
     
-    console.log(JSON.stringify({
-      message: 'Enqueued next job',
-      meeting_id: meetingId,
-      queue: step.queue,
-      job_id: `${step.queue}-${meetingId}`,
-      step: 'workflow_enqueue'
-    }));
+    // Get the next step's queue
+    const nextStep = WORKFLOW_STEPS[step.nextState];
+    if (nextStep && nextStep.queue) {
+      const queue = createQueue(nextStep.queue);
+      await queue.add('process', { meetingId }, {
+        jobId: `${nextStep.queue}-${meetingId}`,
+      });
+      await queue.close();
+      
+      console.log(JSON.stringify({
+        message: 'Enqueued next job',
+        meeting_id: meetingId,
+        queue: nextStep.queue,
+        job_id: `${nextStep.queue}-${meetingId}`,
+        step: 'workflow_enqueue'
+      }));
+    }
   }
 }
 
@@ -63,10 +66,12 @@ export async function handleWorkflowFailure(meetingId, currentState, error) {
     step: 'workflow_failure'
   }));
   
-  await updateMeetingState(meetingId, 'FAILED', {
+  const db = await initializeDatabase();
+  await updateMeetingState(db, meetingId, 'FAILED', {
     error: error.message,
     failed_at_state: currentState
   });
+  await db.close();
 }
 
 /**
@@ -89,7 +94,9 @@ export async function restartWorkflow(meetingId, fromState) {
   }));
   
   // Reset to the starting state
-  await updateMeetingState(meetingId, fromState);
+  const db = await initializeDatabase();
+  await updateMeetingState(db, meetingId, fromState);
+  await db.close();
   
   // Enqueue the appropriate job
   if (step.queue) {
