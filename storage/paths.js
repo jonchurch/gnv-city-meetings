@@ -117,7 +117,8 @@ async function downloadFileFromUrl(url, localPath) {
     throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
   }
   
-  const buffer = await response.buffer();
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
   
   // Ensure directory exists
   await fs.mkdir(path.dirname(localPath), { recursive: true });
