@@ -27,7 +27,6 @@ async function runWhisperX(audioPath, outputPath) {
   // Ensure output directory exists and is writable
   const outputDir = path.dirname(outputPath);
   await fs.mkdir(outputDir, { recursive: true });
-  // await execAsync(`chmod 777 "${path.dirname(audioPath)}"`);
   
   const cmd = `docker run --rm --gpus all \\
     -v "${path.dirname(audioPath)}:/app" \\
@@ -93,7 +92,9 @@ async function processDiarizeJob(job) {
   // Temp file paths
   const tempDir = `/tmp/diarize_${meetingId}_${Date.now()}`;
   try {
-    await fs.mkdir(tempDir, { recursive: true });
+    // Create a new tmp dir with 777 permissions to use as volume, so container user can write to it
+    // and so we don't need to mount /tmp as the volume just to write to /tmp
+    await fs.mkdir(tempDir, { recursive: true, mode: 0o777 });
   } catch(err) {
     console.error("Error creating tmpdir")
     console.error(err)
