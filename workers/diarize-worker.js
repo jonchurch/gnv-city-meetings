@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import { createWorker, createQueue, connection } from '../queue/config.js';
-import { QUEUE_NAMES } from '../workflow/config.js';
+import { createWorker, createQueue, connection, QUEUE_NAMES } from '../queue/config.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from '../db/init.js';
 import { readFile, writeFile, StorageTypes } from '../storage/paths.js';
