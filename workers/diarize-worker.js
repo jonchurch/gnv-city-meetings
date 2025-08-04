@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { createWorker, createQueue, connection, QUEUE_NAMES } from '../queue/config.js';
+import { createWorker, createQueue, connection } from '../queue/config.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
+import { QUEUE_NAMES } from '../workflow/config.js';
 import { initializeDatabase, getMeeting, updateMeetingState, MeetingStates } from '../db/init.js';
 import { readFile, writeFile, StorageTypes } from '../storage/paths.js';
 import { exec } from 'child_process';
@@ -223,7 +224,7 @@ async function main() {
   });
   
   // Also create queue references for cleanup
-  const processingQueue = createQueue(QUEUE_NAMES.PROCESS_MEETING);
+//  const processingQueue = createQueue(QUEUE_NAMES.PROCESS_MEETING);
   const diarizeQueue = createQueue(QUEUE_NAMES.DIARIZE);
   
   worker.on('completed', async (job) => {
@@ -260,7 +261,6 @@ async function main() {
       step: 'worker_shutdown'
     }));
     await worker.close();
-    await processingQueue.close();
     await diarizeQueue.close();
     await connection.quit();
     process.exit(0);
@@ -272,7 +272,6 @@ async function main() {
       step: 'worker_shutdown'
     }));
     await worker.close();
-    await processingQueue.close();
     await diarizeQueue.close();
     await connection.quit();
     process.exit(0);
