@@ -94,7 +94,17 @@ async function processDiarizeJob(job) {
   try {
     // Create a new tmp dir with 777 permissions to use as volume, so container user can write to it
     // and so we don't need to mount /tmp as the volume just to write to /tmp
+    //
+    // bc we are not using a true docker volume, but a bind mount,
+    // making sure the dir is writable to the container user is important
+    // 
+    // we can do this mkdir with mode to give the docker user permissions to write to the dir the current user wrote
+    // but wsl and other umasks will still influence this, my wsl umask is overriding the 777 to 755 here!
     await fs.mkdir(tempDir, { recursive: true, mode: 0o777 });
+    // to get around the umask, we can set perms after creating the dir
+    await fs.chmod(tempDir, 0o777);
+    // (we could just skip the mode arg if we are gonna chmod,
+    // but eh, at least the intent to create a 777 dir is refactor resistant, when baked into creation)
   } catch(err) {
     console.error("Error creating tmpdir")
     console.error(err)
