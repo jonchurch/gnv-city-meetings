@@ -1,6 +1,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
+import fsSync from 'fs';
 import FormData from 'form-data';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -140,7 +141,7 @@ async function downloadFileFromUrl(url, localPath) {
  */
 async function uploadFileToRemote(localPath, type, meetingId) {
   const form = new FormData();
-  form.append('file', fs.createReadStream(localPath));
+  form.append('file', fsSync.createReadStream(localPath));
   
   const uploadUrl = `http://${FILE_SERVER_HOST}:${FILE_SERVER_PORT}/upload/${type}/${meetingId}`;
   
