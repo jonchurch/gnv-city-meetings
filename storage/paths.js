@@ -2,7 +2,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
 import fsSync from 'fs';
-import FormData from 'form-data';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -140,8 +139,13 @@ async function downloadFileFromUrl(url, localPath) {
  * @param {string} meetingId - Meeting ID for upload endpoint
  */
 async function uploadFileToRemote(localPath, type, meetingId) {
+  // Read file into buffer to use with native FormData
+  const fileBuffer = await fs.readFile(localPath);
+  const fileName = path.basename(localPath);
+  
   const form = new FormData();
-  form.append('file', fsSync.createReadStream(localPath));
+  const blob = new Blob([fileBuffer]);
+  form.append('file', blob, fileName);
   
   const uploadUrl = `http://${FILE_SERVER_HOST}:${FILE_SERVER_PORT}/upload/${type}/${meetingId}`;
   
@@ -149,13 +153,13 @@ async function uploadFileToRemote(localPath, type, meetingId) {
     message: 'Uploading file',
     local_path: localPath,
     upload_url: uploadUrl.replace(FILE_SERVER_HOST, '[HOST]'),
+    file_size: fileBuffer.length,
     step: 'upload_start'
   }));
   
   const response = await fetch(uploadUrl, {
     method: 'POST',
-    body: form,
-    headers: form.getHeaders()
+    body: form
   });
   
   if (!response.ok) {
