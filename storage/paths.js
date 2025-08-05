@@ -154,7 +154,8 @@ async function uploadFileToRemote(localPath, type, meetingId) {
   
   const response = await fetch(uploadUrl, {
     method: 'POST',
-    body: form
+    body: form,
+    headers: form.getHeaders()
   });
   
   if (!response.ok) {
