@@ -426,7 +426,7 @@ async function loadProcessedMeetingsManifest() {
     } catch (error) {
       // Create a new manifest if it doesn't exist
       const newManifest = {
-        processedMeetings: [],
+        processedMeetings: {},
         lastUpdated: new Date().toISOString()
       };
       
@@ -437,12 +437,26 @@ async function loadProcessedMeetingsManifest() {
     
     // Read and parse the manifest
     const manifestData = await fs.readFile(manifestPath, 'utf8');
-    return JSON.parse(manifestData);
+    const manifest = JSON.parse(manifestData);
+    
+    // Convert from array to object if needed (backward compatibility)
+    if (Array.isArray(manifest.processedMeetings)) {
+      console.log('Converting manifest from array to object format...');
+      const meetingsObject = {};
+      for (const meeting of manifest.processedMeetings) {
+        meetingsObject[meeting.id] = meeting;
+      }
+      manifest.processedMeetings = meetingsObject;
+      // Save the converted manifest
+      await saveProcessedMeetingsManifest(manifest);
+    }
+    
+    return manifest;
   } catch (error) {
     console.error('Error loading processed meetings manifest:', error);
     // Return empty manifest on error
     return {
-      processedMeetings: [],
+      processedMeetings: {},
       lastUpdated: new Date().toISOString()
     };
   }
@@ -475,7 +489,8 @@ async function saveProcessedMeetingsManifest(manifest) {
  * @returns {boolean} - True if the meeting has been processed, false otherwise
  */
 function isMeetingProcessed(meetingId, manifest) {
-  return manifest.processedMeetings.some(m => m.id === meetingId && m.success);
+  const meeting = manifest.processedMeetings[meetingId];
+  return meeting && meeting.success;
 }
 
 /**
@@ -516,7 +531,7 @@ async function batchProcessMeetings(options = {}) {
     
     // Load processed meetings manifest
     const manifest = await loadProcessedMeetingsManifest();
-    console.log(`Loaded manifest with ${manifest.processedMeetings.length} previously processed meetings.`);
+    console.log(`Loaded manifest with ${Object.keys(manifest.processedMeetings).length} previously processed meetings.`);
     
     // Fetch meetings with video
     const allMeetings = await fetchMeetingsWithVideo(options.startDate, options.endDate);
@@ -613,8 +628,8 @@ async function batchProcessMeetings(options = {}) {
         manEntry = {...manEntry, success: false, error: error.message}
 
       } finally {
-        // Add to processed meetings manifest
-        manifest.processedMeetings.push(manEntry);
+        // Add or update entry in processed meetings manifest using meeting ID as key
+        manifest.processedMeetings[meeting.id] = manEntry;
         // Save manifest after each successful processing
         await saveProcessedMeetingsManifest(manifest);
       }

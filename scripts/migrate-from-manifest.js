@@ -13,11 +13,19 @@ async function migrateFromManifest() {
     const manifestData = await fs.readFile(manifestPath, 'utf8');
     const manifest = JSON.parse(manifestData);
     
-    console.log(`Found ${manifest.processedMeetings.length} meetings in manifest`);
+    // Handle both array and object formats
+    let meetings;
+    if (Array.isArray(manifest.processedMeetings)) {
+      meetings = manifest.processedMeetings;
+      console.log(`Found ${meetings.length} meetings in manifest (array format)`);
+    } else {
+      meetings = Object.values(manifest.processedMeetings);
+      console.log(`Found ${meetings.length} meetings in manifest (object format)`);
+    }
     
     const db = await initializeDatabase();
     
-    for (const entry of manifest.processedMeetings) {
+    for (const entry of meetings) {
       const meeting = {
         id: entry.id,
         title: entry.title || 'Unknown',
