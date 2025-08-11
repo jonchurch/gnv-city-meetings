@@ -75,6 +75,11 @@ async function ensureFreshClient(oAuth2Client) {
     if (isTokenExpired(oAuth2Client.credentials)) {
       console.log('Token expired, refreshing...');
       const { credentials } = await oAuth2Client.refreshAccessToken();
+      // Log if refresh_token is missing (shouldn't happen with Google OAuth)
+      if (!credentials.refresh_token && oAuth2Client.credentials.refresh_token) {
+        console.log('Note: Refresh response did not include refresh_token, preserving existing one');
+        credentials.refresh_token = oAuth2Client.credentials.refresh_token;
+      }
       oAuth2Client.setCredentials(credentials);
       await fs.writeFile(TOKEN_PATH, JSON.stringify(credentials, null, 2));
       console.log('Token refreshed and saved');
