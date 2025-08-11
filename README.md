@@ -17,7 +17,7 @@ A Node.js tool to download video recordings of Gainesville city government meeti
 For local development:
 - Node.js 22 or higher
 - Python 3
-- [Custom fork of yt-dlp](https://github.com/robjwells/yt-dlp) (until [this PR](https://github.com/yt-dlp/yt-dlp/pull/11607) is merged upstream)
+- [Custom fork of yt-dlp](https://github.com/robjwells/yt-dlp/tree/escribe) (until [this PR](https://github.com/yt-dlp/yt-dlp/pull/11607) is merged upstream)
 - `git clone --branch escribe --single-branch https://github.com/robjwells/yt-dlp.git`
 
 For deployment:
