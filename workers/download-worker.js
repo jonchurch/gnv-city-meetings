@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createWorker, connection } from '../queue/config.js';
 import { getMeeting } from '../api/meetings-client.js';
+import * as pgDb from '../db/queries.js';
 import { pathFor, StorageTypes, ensureStorageDirs } from '../storage/paths.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
@@ -73,12 +74,19 @@ async function processDownloadJob(job) {
     
     // Download the video
     const result = await downloadVideo(meetingId);
-    
-    // Advance to next step
+
+    // Write to PostgreSQL first
+    await pgDb.upsertMeeting({
+      id: meetingId,
+      video_path: result.outputPath,
+      processing_status: 'downloaded'
+    });
+
+    // Then advance SQLite orchestration
     await advanceWorkflow(meetingId, 'DISCOVERED', {
       video_path: result.outputPath
     });
-    
+
     console.log(JSON.stringify({
       message: 'Download job completed',
       meeting_id: meetingId,

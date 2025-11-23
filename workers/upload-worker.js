@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createWorker, connection } from '../queue/config.js';
 import { getMeeting } from '../api/meetings-client.js';
+import * as pgDb from '../db/queries.js';
 import { pathFor, StorageTypes } from '../storage/paths.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
@@ -123,14 +124,21 @@ async function processUploadJob(job) {
   try {
     // Upload to YouTube
     const ytResult = await uploadMeetingToYouTube(meetingId);
-    
-    // Advance to next step
+
+    // Write to PostgreSQL first
+    await pgDb.upsertMeeting({
+      id: meetingId,
+      youtube_url: ytResult.url,
+      processing_status: 'uploaded'
+    });
+
+    // Then advance SQLite orchestration
     await advanceWorkflow(meetingId, 'EXTRACTED', {
       youtube_url: ytResult.url,
       youtube_video_id: ytResult.videoId,
       playlist_results: ytResult.playlistResults
     });
-    
+
     console.log(JSON.stringify({
       message: 'Upload job completed',
       meeting_id: meetingId,

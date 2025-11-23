@@ -4,6 +4,7 @@ import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator
 import { QUEUE_NAMES } from '../workflow/config.js';
 import { getMeeting, updateMeetingState } from '../api/meetings-client.js';
 import { MeetingStates } from '../db/init.js';
+import * as pgDb from '../db/queries.js';
 import { readFile, writeFile, StorageTypes } from '../storage/paths.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -169,10 +170,21 @@ async function processDiarizeJob(job) {
     }));
     
     await writeFile(localOutputPath, StorageTypes.DERIVED_DIARIZED, meetingId);
-    
-    // 5. Advance workflow to next state
+
+    // TODO: Parse diarized JSON and insert transcript_lines into PostgreSQL
+    // const diarizedData = JSON.parse(await fs.readFile(localOutputPath, 'utf8'));
+    // const transcriptLines = parseDiarizedOutput(diarizedData, meetingId);
+    // await pgDb.insertTranscriptLines(meetingId, transcriptLines, 'whisperx_v1');
+
+    // Write to PostgreSQL
+    await pgDb.upsertMeeting({
+      id: meetingId,
+      processing_status: 'diarized'
+    });
+
+    // Write to SQLite orchestration
     await advanceWorkflow(meetingId, 'UPLOADED');
-    
+
     console.log(JSON.stringify({
       message: 'Diarization completed successfully',
       meeting_id: meetingId,
