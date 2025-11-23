@@ -176,12 +176,14 @@ await pgDb.upsertMeeting({
 ## Implementation Steps
 
 1. ✅ Add `parseMeetingType()` helper function
-2. Update `discover.js` to dual-write
-3. Update `download-worker.js` to dual-write
-4. Update `extract-worker.js` to dual-write
-5. Update `upload-worker.js` to dual-write
-6. Update `diarize-worker.js` to dual-write + parse transcript
-7. Test end-to-end with a real meeting
+2. ✅ Update `discover.js` to dual-write
+3. ✅ Update `download-worker.js` to dual-write
+4. ✅ Update `extract-worker.js` to dual-write
+5. ✅ Update `upload-worker.js` to dual-write
+6. ✅ Update `diarize-worker.js` to dual-write (transcript parsing TODO)
+7. ⏳ Test end-to-end with a real meeting
+
+**Note:** All PostgreSQL writes happen BEFORE advancing workflow to ensure data is persisted before state transitions.
 
 ## Success Criteria
 
