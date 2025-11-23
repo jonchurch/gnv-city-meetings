@@ -170,6 +170,36 @@ export async function upsertMeeting(meeting) {
 }
 
 /**
+ * Update specific fields on a meeting (partial update)
+ * @param {string} meetingId
+ * @param {Object} fields - Fields to update (e.g., { video_path: '...', processing_status: 'downloaded' })
+ * @returns {Promise<Object>}
+ */
+export async function updateMeeting(meetingId, fields) {
+  const setClauses = [];
+  const values = [meetingId];
+  let paramIndex = 2;
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) {
+      setClauses.push(`${key} = $${paramIndex}`);
+      values.push(value);
+      paramIndex++;
+    }
+  }
+
+  if (setClauses.length === 0) {
+    throw new Error('No fields to update');
+  }
+
+  setClauses.push('updated_at = NOW()');
+
+  const sql = `UPDATE meetings SET ${setClauses.join(', ')} WHERE id = $1 RETURNING *`;
+  const result = await query(sql, values);
+  return result.rows[0];
+}
+
+/**
  * Update meeting processing status
  * @param {string} meetingId
  * @param {string} status

@@ -177,8 +177,7 @@ async function processDiarizeJob(job) {
     // await pgDb.insertTranscriptLines(meetingId, transcriptLines, 'whisperx_v1');
 
     // Write to PostgreSQL
-    await pgDb.upsertMeeting({
-      id: meetingId,
+    await pgDb.updateMeeting(meetingId, {
       processing_status: 'diarized'
     });
 
