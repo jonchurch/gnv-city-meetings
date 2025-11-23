@@ -3,7 +3,7 @@
  * This replaces direct database access for distributed workers
  */
 
-const API_HOST = process.env.MEETINGS_API_HOST || 'muadib';
+const API_HOST = process.env.MEETINGS_API_HOST || 'localhost';
 const API_PORT = process.env.MEETINGS_API_PORT || 3001;
 const API_BASE = `http://${API_HOST}:${API_PORT}/api`;
 
