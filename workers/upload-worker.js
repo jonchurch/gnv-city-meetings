@@ -79,13 +79,21 @@ async function uploadMeetingToYouTube(meetingId) {
     }
     
     console.log(JSON.stringify({
-      message: 'Starting YouTube upload',
+      message: 'TESTING MODE - Skipping YouTube upload',
       meeting_id: meetingId,
       title,
       video_path: videoPath,
       step: 'upload_start'
     }));
-    
+
+    // TESTING: Skip actual upload, return mock data
+    const ytResult = {
+      url: `https://www.youtube.com/watch?v=TEST_${meetingId}`,
+      videoId: `TEST_${meetingId}`,
+      playlistResults: []
+    };
+
+    /* TODO: Uncomment for production uploads
     const ytResult = await uploadToYouTube({
       videoPath,
       title,
@@ -94,16 +102,16 @@ async function uploadMeetingToYouTube(meetingId) {
       privacyStatus: 'public',
       playlistIds
     });
-    
+    */
+
     console.log(JSON.stringify({
-      message: 'YouTube upload complete',
+      message: 'TESTING MODE - Upload skipped',
       meeting_id: meetingId,
       youtube_url: ytResult.url,
       video_id: ytResult.videoId,
-      playlist_results: ytResult.playlistResults,
       step: 'upload_complete'
     }));
-    
+
     return ytResult;
     
   } catch (error) {
