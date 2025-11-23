@@ -1,12 +1,28 @@
 #!/usr/bin/env node
 import { parseArgs } from 'util';
 import { initializeDatabase, insertMeeting, getMeeting } from './db/init.js';
+import * as pgDb from './db/queries.js';
 import { createQueue } from './queue/config.js';
 import { QUEUE_NAMES } from './workflow/config.js';
 import 'dotenv/config';
 
 const BASE_URL = 'https://pub-cityofgainesville.escribemeetings.com';
 const API_URL = `${BASE_URL}/MeetingsCalendarView.aspx/GetCalendarMeetings`;
+
+/**
+ * Parse meeting type from title
+ * Examples: "City Commission Meeting" -> "City Commission"
+ *           "Planning Board Meeting" -> "Planning Board"
+ */
+function parseMeetingType(title) {
+  // Remove common suffixes
+  const cleaned = title
+    .replace(/\s+Meeting$/i, '')
+    .replace(/\s+\d{4}$/i, '')
+    .trim();
+
+  return cleaned || 'Unknown';
+}
 
 function getDateRange(startDate, endDate) {
   if (startDate && endDate) {
@@ -91,7 +107,19 @@ export async function runDiscovery(options = {}) {
       const existing = await getMeeting(db, meeting.id);
       
       if (!existing) {
+        // Write to SQLite (orchestration)
         await insertMeeting(db, meeting);
+
+        // Write to PostgreSQL (application data)
+        await pgDb.upsertMeeting({
+          id: meeting.id,
+          title: meeting.title,
+          date: meeting.date,
+          meeting_type: parseMeetingType(meeting.title),
+          escribe_url: meeting.meeting_url,
+          processing_status: 'discovered'
+        });
+
         newMeetingsCount++;
         console.log(JSON.stringify({
           message: 'Inserted new meeting',
@@ -100,7 +128,7 @@ export async function runDiscovery(options = {}) {
           date: meeting.date,
           step: 'discovery'
         }));
-        
+
         // Enqueue for download (first step in workflow)
         await queue.add('process', { meetingId: meeting.id }, {
           jobId: `download-${meeting.id}`,

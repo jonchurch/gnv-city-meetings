@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createWorker, connection } from '../queue/config.js';
 import { getMeeting } from '../api/meetings-client.js';
+import * as pgDb from '../db/queries.js';
 import { pathFor, StorageTypes } from '../storage/paths.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
@@ -264,8 +265,10 @@ async function processExtractJob(job) {
     const videoPath = pathFor(StorageTypes.RAW_VIDEO, meetingId);
     const audioPath = pathFor(StorageTypes.DERIVED_AUDIO, meetingId);
     
+    let audioExtracted = false;
     try {
       await extractAudio(videoPath, audioPath);
+      audioExtracted = true;
     } catch (audioError) {
       // Log error but don't fail the job - diarization is optional
       console.error(JSON.stringify({
@@ -275,13 +278,20 @@ async function processExtractJob(job) {
         step: 'audio_extract_warning'
       }));
     }
-    
-    // Advance to next step
+
+    // Write to PostgreSQL first
+    await pgDb.upsertMeeting({
+      id: meetingId,
+      audio_path: audioExtracted ? audioPath : null,
+      processing_status: 'extracted'
+    });
+
+    // Then advance SQLite orchestration
     await advanceWorkflow(meetingId, 'DOWNLOADED', {
       agenda_data: result.agendaData,
       chapters_text: result.chaptersText
     });
-    
+
     console.log(JSON.stringify({
       message: 'Extract job completed',
       meeting_id: meetingId,
