@@ -134,8 +134,7 @@ async function processUploadJob(job) {
     const ytResult = await uploadMeetingToYouTube(meetingId);
 
     // Write to PostgreSQL first
-    await pgDb.upsertMeeting({
-      id: meetingId,
+    await pgDb.updateMeeting(meetingId, {
       youtube_url: ytResult.url,
       processing_status: 'uploaded'
     });

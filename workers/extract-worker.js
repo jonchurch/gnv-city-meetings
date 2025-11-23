@@ -280,8 +280,7 @@ async function processExtractJob(job) {
     }
 
     // Write to PostgreSQL first
-    await pgDb.upsertMeeting({
-      id: meetingId,
+    await pgDb.updateMeeting(meetingId, {
       audio_path: audioExtracted ? audioPath : null,
       processing_status: 'extracted'
     });

@@ -76,8 +76,7 @@ async function processDownloadJob(job) {
     const result = await downloadVideo(meetingId);
 
     // Write to PostgreSQL first
-    await pgDb.upsertMeeting({
-      id: meetingId,
+    await pgDb.updateMeeting(meetingId, {
       video_path: result.outputPath,
       processing_status: 'downloaded'
     });
