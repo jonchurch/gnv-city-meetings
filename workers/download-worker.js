@@ -15,16 +15,16 @@ const YTDLP_PATH = process.env.YTDLP_PATH || '/Users/jon/Spoons/yt-dlp/yt_dlp/__
 async function downloadVideo(meetingId) {
   try {
     const meeting = await getMeeting(meetingId);
-    
+
     if (!meeting) {
       throw new Error(`Meeting ${meetingId} not found`);
     }
-    
+
     const outputPath = pathFor(StorageTypes.RAW_VIDEO, meetingId);
-    
-    const cmd = YTDLP_PATH.includes('/') ? 
-      `python3 "${YTDLP_PATH}" "${meeting.meeting_url}" --output "${outputPath}"` :
-      `${YTDLP_PATH} "${meeting.meeting_url}" --output "${outputPath}"`;
+
+    const cmd = YTDLP_PATH.includes('/') ?
+      `python3 "${YTDLP_PATH}" "${meeting.meeting_url}" --output "${outputPath}" --no-check-certificate` :
+      `${YTDLP_PATH} "${meeting.meeting_url}" --output "${outputPath}" --no-check-certificate`;
     
     console.log(JSON.stringify({
       message: 'Starting video download',
