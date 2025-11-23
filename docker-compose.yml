@@ -11,5 +11,25 @@ services:
     command: redis-server --appendonly yes --bind 0.0.0.0
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: gnv-meetings-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: gnv_meetings
+      POSTGRES_USER: gnv_meetings_user
+      POSTGRES_PASSWORD: gnv_meetings_dev_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gnv_meetings_user -d gnv_meetings"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   redis-data:
+  postgres-data:
