@@ -21,6 +21,35 @@ const WHISPERX_IMAGE = process.env.WHISPERX_IMAGE || 'ghcr.io/jim60105/whisperx:
 const GPU_DEVICE = process.env.GPU_DEVICE || '0';
 const HF_TOKEN = process.env.HF_TOKEN;
 
+/**
+ * Parse WhisperX diarization output into transcript_lines format
+ * @param {Object} diarizedData - WhisperX JSON output
+ * @param {string} meetingId
+ * @returns {Array<Object>} - Array of transcript line objects
+ */
+function parseDiarizedOutput(diarizedData, meetingId) {
+  if (!diarizedData.segments || !Array.isArray(diarizedData.segments)) {
+    throw new Error('Invalid diarized data: missing segments array');
+  }
+
+  return diarizedData.segments.map((segment, index) => {
+    return {
+      id: `${meetingId}_seg_${index}`,
+      meeting_id: meetingId,
+      chunk_id: null,
+      speaker_id: null,
+      start_time: segment.start,
+      end_time: segment.end,
+      text: segment.text.trim(),
+      whisperx_speaker_label: segment.speaker,
+      voiceprint_confidence: null,
+      was_corrected_by_llm: false,
+      correction_reason: null,
+      processing_version: 'whisperx_large-v3_initial'
+    };
+  });
+}
+
 async function runWhisperX(audioPath, outputPath) {
   if (!HF_TOKEN) {
     throw new Error('HF_TOKEN environment variable required for speaker diarization');
@@ -171,10 +200,31 @@ async function processDiarizeJob(job) {
     
     await writeFile(localOutputPath, StorageTypes.DERIVED_DIARIZED, meetingId);
 
-    // TODO: Parse diarized JSON and insert transcript_lines into PostgreSQL
-    // const diarizedData = JSON.parse(await fs.readFile(localOutputPath, 'utf8'));
-    // const transcriptLines = parseDiarizedOutput(diarizedData, meetingId);
-    // await pgDb.insertTranscriptLines(meetingId, transcriptLines, 'whisperx_v1');
+    // Parse diarized JSON and insert transcript_lines into PostgreSQL
+    console.log(JSON.stringify({
+      message: 'Parsing diarization output',
+      meeting_id: meetingId,
+      step: 'diarize_parse'
+    }));
+
+    const diarizedData = JSON.parse(await fs.readFile(localOutputPath, 'utf8'));
+    const transcriptLines = parseDiarizedOutput(diarizedData, meetingId);
+
+    console.log(JSON.stringify({
+      message: 'Inserting transcript lines into PostgreSQL',
+      meeting_id: meetingId,
+      line_count: transcriptLines.length,
+      step: 'diarize_insert'
+    }));
+
+    const insertedCount = await pgDb.insertTranscriptLines(meetingId, transcriptLines, 'whisperx_large-v3_initial');
+
+    console.log(JSON.stringify({
+      message: 'Transcript lines inserted',
+      meeting_id: meetingId,
+      inserted_count: insertedCount,
+      step: 'diarize_inserted'
+    }));
 
     // Write to PostgreSQL
     await pgDb.updateMeeting(meetingId, {
@@ -182,7 +232,7 @@ async function processDiarizeJob(job) {
     });
 
     // Write to SQLite orchestration
-    await advanceWorkflow(meetingId, 'UPLOADED');
+    await advanceWorkflow(meetingId, meeting.state);
 
     console.log(JSON.stringify({
       message: 'Diarization completed successfully',
