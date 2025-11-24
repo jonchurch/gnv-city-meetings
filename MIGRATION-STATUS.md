@@ -15,31 +15,42 @@
 - [x] `download-worker.js` - writes `video_path` to PostgreSQL
 - [x] `extract-worker.js` - writes `audio_path` to PostgreSQL
 - [x] `upload-worker.js` - writes `youtube_url` to PostgreSQL (uploads disabled for testing)
-- [x] `diarize-worker.js` - updates `processing_status` to PostgreSQL
+- [x] `diarize-worker.js` - **parses WhisperX output and inserts transcript_lines into PostgreSQL**
+
+### Transcript Processing
+- [x] **Parse WhisperX JSON segments** into transcript_lines format
+- [x] **Store transcript lines** with:
+  - Speaker labels (`whisperx_speaker_label`: SPEAKER_00, SPEAKER_01, etc.)
+  - Timestamps (`start_time`, `end_time` in seconds)
+  - Full transcript text
+  - Deterministic IDs (`{meetingId}_seg_{index}`)
+- [x] **Query helpers** (`getTranscriptLines`, `insertTranscriptLines`)
+- [x] **Test script** (`test-transcript-parsing.js`) validates parsing
 
 ### Key Design Decisions
 - **Dual-write pattern**: SQLite handles orchestration, PostgreSQL stores application data
 - **Write order**: PostgreSQL writes happen BEFORE workflow advancement
 - **Testing mode**: YouTube uploads disabled, returns mock URLs
-- **Deferred features**: Transcript line parsing, blob storage paths
+- **Transcript storage**: Segment-level only (not word-level)
+- **Speaker pipeline**: Store raw WhisperX labels now, map to real names later via voiceprinting
+- **Enrichment fields**: `chunk_id`, `speaker_id`, `voiceprint_confidence` initially NULL
 
 ## 🚧 In Progress / TODO
 
 ### High Priority
-- [ ] Parse WhisperX JSON output in diarize-worker
-- [ ] Insert transcript_lines into PostgreSQL
-- [ ] Test end-to-end with a real meeting
+- [x] ~~Parse WhisperX JSON output in diarize-worker~~ ✅ Done!
+- [x] ~~Insert transcript_lines into PostgreSQL~~ ✅ Done!
+- [ ] Implement chunking pipeline (parse agenda → create chunks → assign transcript lines)
 
 ### Medium Priority
+- [ ] Speaker identification and voiceprinting (map SPEAKER_XX to real names)
 - [ ] Decide blob storage strategy for agenda_data and chapters_text
 - [ ] Populate `escribe_agenda_path` and `escribe_transcript_path` fields
-- [ ] Handle transcript line to chunk assignments
 
 ### Future Work
-- [ ] Implement chunking pipeline (parse agenda → create chunks)
-- [ ] Speaker identification and voiceprinting
-- [ ] Meeting summary generation
-- [ ] Migrate orchestration to pg-task
+- [ ] Meeting summary generation (per-chunk or per-meeting)
+- [ ] LLM-based transcript correction (`was_corrected_by_llm` field)
+- [ ] Migrate orchestration to pg-task (replace BullMQ/Redis)
 - [ ] Remove SQLite dependency
 
 ## Testing Readiness
@@ -72,7 +83,13 @@ docker exec gnv-meetings-postgres psql -U gnv_meetings_user -d gnv_meetings \
 **Expected Results:**
 - Meeting record with `processing_status = 'diarized'`
 - Paths populated: `video_path`, `audio_path`, `youtube_url` (mock)
-- No transcript_lines yet (parsing not implemented)
+- **Transcript lines fully populated** with speaker labels and timestamps
+
+**Verify transcript data:**
+```bash
+docker exec gnv-meetings-postgres psql -U gnv_meetings_user -d gnv_meetings \
+  -c "SELECT COUNT(*), COUNT(DISTINCT whisperx_speaker_label) as speakers FROM transcript_lines WHERE meeting_id = 'YOUR_MEETING_ID';"
+```
 
 ## Architecture Overview
 
@@ -111,10 +128,18 @@ docker exec gnv-meetings-postgres psql -U gnv_meetings_user -d gnv_meetings \
 
 ## Next Steps
 
-1. **Test with real meeting** - Run discovery and full pipeline
-2. **Implement transcript parsing** - Parse WhisperX JSON in diarize-worker
-3. **Validate data** - Check PostgreSQL has all expected data
-4. **Iterate** - Fix issues, add missing features
+**The Big One: Chunking Pipeline**
+This is the core product feature - breaking meetings into navigable semantic segments.
+
+1. **Parse agenda data** - Extract agenda items with timestamps from extract-worker output
+2. **Create chunks** - Insert records into `chunks` table with title, start/end times
+3. **Assign transcript lines** - Match transcript_lines to chunks based on timestamps, populate `chunk_id`
+4. **Test navigation** - Verify users can jump to specific agenda items
+
+**Other priorities:**
+- Speaker identification (voiceprinting)
+- Meeting summaries
+- Test full pipeline end-to-end with multiple meetings
 
 ## Migration to pg-task (Future)
 
