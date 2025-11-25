@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 import { createWorker, createQueue, connection } from '../queue/config.js';
 import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator.js';
 import { QUEUE_NAMES } from '../workflow/config.js';
@@ -7,9 +8,9 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { pathFor, StorageTypes } from '../storage/paths.js';
+import { formatTranscriptForLLM } from './utils.js';
 import { promises as fs } from 'fs';
 import path from 'path';
-import 'dotenv/config';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -29,24 +30,6 @@ const ChunkSchema = z.object({
 const ChunksResponseSchema = z.object({
   chunks: z.array(ChunkSchema),
 });
-
-/**
- * Format transcript lines for LLM input
- * @param {Array<Object>} transcriptLines
- * @returns {string}
- */
-function formatTranscriptForLLM(transcriptLines) {
-  return transcriptLines
-    .map((line, idx) => {
-      const startMin = Math.floor(line.start_time / 60);
-      const startSec = Math.floor(line.start_time % 60);
-      const endMin = Math.floor(line.end_time / 60);
-      const endSec = Math.floor(line.end_time % 60);
-
-      return `[${idx}] ${startMin}:${startSec.toString().padStart(2, '0')} - ${endMin}:${endSec.toString().padStart(2, '0')} | ${line.whisperx_speaker_label}: ${line.text.trim()}`;
-    })
-    .join('\n');
-}
 
 /**
  * Call OpenAI to generate chunks for a meeting transcript
