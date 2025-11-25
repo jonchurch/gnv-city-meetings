@@ -18,6 +18,8 @@
     "redis:stop": "docker-compose down",
     "redis:logs": "docker-compose logs -f redis",
     "queue:ui": "npx bull-board",
+    "api": "node api/meetings-api.js",
+    "api:public": "node api/public-api.js",
     "legacy:process": "node unified-processor.js",
     "legacy:upload": "node youtube-uploader.js"
   },
