@@ -302,7 +302,7 @@ Meeting Commands:
   set-state <meetingId> <state>    - Set meeting state directly
 
 Queues: ${VALID_QUEUES.join(', ')}
-States: DISCOVERED, DOWNLOADED, EXTRACTED, UPLOADED, DIARIZED, FAILED
+States: DISCOVERED, DOWNLOADED, EXTRACTED, UPLOADED, DIARIZED, CHUNKED, FAILED
 
 Examples:
   node queue-manager.js meeting b27b5bd3-369f-4a0a-a942-255b10698bd2

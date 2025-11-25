@@ -102,7 +102,7 @@ async function main() {
       const state = args[2] || 'DISCOVERED';
       if (!meetingId) {
         console.error('Usage: node trigger-job.js restart <meeting-id> [state]');
-        console.error('States: DISCOVERED, DOWNLOADED, EXTRACTED, UPLOADED');
+        console.error('States: DISCOVERED, DOWNLOADED, EXTRACTED, UPLOADED, DIARIZED');
         process.exit(1);
       }
       await triggerFromState(meetingId, state);
@@ -111,7 +111,7 @@ async function main() {
       console.log('  node trigger-job.js list                    - List all meetings');
       console.log('  node trigger-job.js download <meeting-id>   - Trigger download for a meeting');
       console.log('  node trigger-job.js restart <meeting-id> [state] - Restart from a specific state');
-      console.log('\nStates: DISCOVERED, DOWNLOADED, EXTRACTED, UPLOADED');
+      console.log('\nStates: DISCOVERED, DOWNLOADED, EXTRACTED, UPLOADED, DIARIZED');
     }
   } catch (error) {
     console.error('Error:', error);

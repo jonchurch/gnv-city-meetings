@@ -5,7 +5,7 @@ import { QUEUE_NAMES } from '../workflow/config.js';
 import * as pgDb from '../db/queries.js';
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { zodResponseFormat } from 'openai/helpers/zod';
+import { zodTextFormat } from 'openai/helpers/zod';
 import 'dotenv/config';
 
 const openai = new OpenAI({
@@ -71,17 +71,18 @@ Analyze the transcript and identify distinct chunks based on:
 
 **Important:** Use the segment index numbers (from the brackets) to specify which segments belong to each chunk. For example, if a chunk includes segments [0] through [9], set start_segment_index: 0 and end_segment_index: 9.`;
 
-  const completion = await openai.beta.chat.completions.parse({
+  const response = await openai.responses.parse({
     model: 'gpt-4o-2024-08-06',
-    messages: [
+    input: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Here is the transcript to chunk:\n\n${formattedTranscript}` },
     ],
-    response_format: zodResponseFormat(ChunksResponseSchema, 'chunks'),
+    text: {
+      format: zodTextFormat(ChunksResponseSchema, 'chunks_response'),
+    },
   });
 
-  const parsed = completion.choices[0].message.parsed;
-  return parsed.chunks;
+  return response.output_parsed.chunks;
 }
 
 /**
