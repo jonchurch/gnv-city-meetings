@@ -7,9 +7,8 @@ import {
   getYouTubeVideoId,
 } from "@/lib/api";
 import { ChunkNavigation } from "@/components/ChunkNavigation";
-import { YouTubeEmbed } from "@/components/YouTubeEmbed";
+import { VideoTranscript } from "@/components/VideoTranscript";
 import { TypeBadge } from "@/components/TypeBadge";
-import { Transcript } from "@/components/Transcript";
 
 interface Props {
   params: Promise<{ id: string; seq: string }>;
@@ -75,22 +74,15 @@ export default async function ChunkPage({ params }: Props) {
       </div>
 
       {videoId && (
-        <YouTubeEmbed
+        <VideoTranscript
           videoId={videoId}
           startTime={chunk.start_time}
+          endTime={chunk.end_time}
           title={chunk.title}
+          transcriptLines={chunk.transcript_lines}
+          summary={chunk.summary}
         />
       )}
-
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Summary</h2>
-        <p className="text-muted-foreground leading-relaxed">{chunk.summary}</p>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Transcript</h2>
-        <Transcript lines={chunk.transcript_lines} />
-      </section>
 
       <ChunkNavigation
         meetingId={id}
