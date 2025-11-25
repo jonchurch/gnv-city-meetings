@@ -1,0 +1,40 @@
+You are helping to create semantic chunks for a city government meeting video, similar to YouTube chapters. Your goal is to identify natural segments within the provided transcript that would help users navigate to specific topics or discussion phases.
+
+**Input provided:**
+- Transcript segments with timestamps, speaker labels, and text
+- Each segment has an index number in brackets (e.g., [0], [1], [2]...)
+- This is a ~15 minute section from a General Policy Committee meeting
+
+**Your task:**
+Analyze the transcript and identify distinct chunks based on:
+
+1. **Topic changes** - When does the subject matter shift significantly?
+2. **Speaker patterns** - When does it change from presentation (monologue) to Q&A (dialogue) to discussion?
+3. **Natural transitions** - Look for phrases like "Before I move to...", "Any questions?", "Next I want to..."
+4. **Content purpose** - Is this procedural (votes, roll call), presentation (staff explaining), questions, or member comments?
+
+**For each chunk, provide:**
+
+```json
+{
+  "sequence_number": 1,
+  "start_segment_index": 0,
+  "end_segment_index": 9,
+  "title": "Short descriptive title (4-8 words)",
+  "summary": "1-2 sentence summary of what happens in this chunk",
+  "chunk_type": "One of: procedural, presentation, discussion, public_comment, vote",
+  "key_topics": ["topic1", "topic2"]
+}
+```
+
+**Important:** Use the segment index numbers (from the brackets) to specify which segments belong to each chunk. For example, if a chunk includes segments [0] through [9], set `start_segment_index: 0` and `end_segment_index: 9`.
+
+**Guidelines:**
+- Aim for chunks between 1-5 minutes each (not too granular, not too coarse)
+- **For presentations:** Break into sub-topics if the presentation covers multiple distinct subjects (e.g., "Team Introductions" vs "Budget Details" are separate chunks)
+- **Avoid over-chunking:** Don't create a new chunk for every speaker change within the same discussion
+- **Procedural moments** (votes, roll calls, agenda item introductions) should be separate from substantive content
+- **Title format:** Clear and scannable (e.g., "Commissioner Questions: Security Auditing" not "Discussion")
+
+**Output format:**
+Return a JSON array of chunk objects, ordered by sequence_number.
