@@ -6,6 +6,9 @@ import * as pgDb from '../db/queries.js';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { zodTextFormat } from 'openai/helpers/zod';
+import { pathFor, StorageTypes } from '../storage/paths.js';
+import { promises as fs } from 'fs';
+import path from 'path';
 import 'dotenv/config';
 
 const openai = new OpenAI({
@@ -20,7 +23,7 @@ const ChunkSchema = z.object({
   title: z.string().min(1).max(100),
   summary: z.string().min(1),
   chunk_type: z.enum(['procedural', 'presentation', 'discussion', 'public_comment', 'vote']),
-  key_topics: z.array(z.string()).optional(),
+  key_topics: z.array(z.string()).nullable().optional(),
 });
 
 const ChunksResponseSchema = z.object({
@@ -48,9 +51,10 @@ function formatTranscriptForLLM(transcriptLines) {
 /**
  * Call OpenAI to generate chunks for a meeting transcript
  * @param {Array<Object>} transcriptLines
+ * @param {string} meetingId - Meeting ID for saving debug output
  * @returns {Promise<Array<Object>>}
  */
-async function generateChunks(transcriptLines) {
+async function generateChunks(transcriptLines, meetingId) {
   const formattedTranscript = formatTranscriptForLLM(transcriptLines);
 
   const systemPrompt = `You are helping to create semantic chunks for a city government meeting video, similar to YouTube chapters. Your goal is to identify natural segments within the provided transcript that would help users navigate to specific topics or discussion phases.
@@ -72,7 +76,7 @@ Analyze the transcript and identify distinct chunks based on:
 **Important:** Use the segment index numbers (from the brackets) to specify which segments belong to each chunk. For example, if a chunk includes segments [0] through [9], set start_segment_index: 0 and end_segment_index: 9.`;
 
   const response = await openai.responses.parse({
-    model: 'gpt-4o-2024-08-06',
+    model: 'gpt-5.1',
     input: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `Here is the transcript to chunk:\n\n${formattedTranscript}` },
@@ -81,6 +85,32 @@ Analyze the transcript and identify distinct chunks based on:
       format: zodTextFormat(ChunksResponseSchema, 'chunks_response'),
     },
   });
+
+  // Log token usage
+  console.log(JSON.stringify({
+    message: 'LLM chunking complete',
+    usage: response.usage,
+    chunk_count: response.output_parsed.chunks.length,
+    step: 'chunking_llm_usage'
+  }));
+
+  // Save LLM response to storage for debugging
+  const debugData = {
+    input_segment_count: transcriptLines.length,
+    output: response.output_parsed,
+    usage: response.usage
+  };
+
+  const chunksPath = pathFor(StorageTypes.DERIVED_CHUNKS, meetingId);
+  await fs.mkdir(path.dirname(chunksPath), { recursive: true });
+  await fs.writeFile(chunksPath, JSON.stringify(debugData, null, 2));
+
+  console.log(JSON.stringify({
+    message: 'Saved LLM response to storage',
+    meeting_id: meetingId,
+    path: chunksPath,
+    step: 'chunking_debug'
+  }));
 
   return response.output_parsed.chunks;
 }
@@ -166,7 +196,7 @@ async function processChunkingJob(job) {
       step: 'chunking_llm_start'
     }));
 
-    const chunks = await generateChunks(transcriptLines);
+    const chunks = await generateChunks(transcriptLines, meetingId);
 
     console.log(JSON.stringify({
       message: 'LLM returned chunks',
