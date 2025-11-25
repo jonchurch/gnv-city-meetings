@@ -13,3 +13,6 @@ meetings.db
 
 # llm
 .claude/settings.local.json
+
+# scratch
+.tmp.local/
