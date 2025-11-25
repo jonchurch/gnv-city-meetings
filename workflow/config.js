@@ -19,10 +19,15 @@ export const WORKFLOW_STEPS = {
     queue: 'diarize',
     description: 'Video uploaded to YouTube'
   },
-  DIARIZED: { 
-    nextState: null, 
+  DIARIZED: {
+    nextState: 'CHUNKED',
+    queue: 'chunk',
+    description: 'Audio transcribed and diarized'
+  },
+  CHUNKED: {
+    nextState: null,
     queue: null,
-    description: 'Audio transcribed and diarized (terminal state)'
+    description: 'Meeting chunked into semantic segments (terminal state)'
   },
   FAILED: { 
     nextState: null, 
@@ -33,9 +38,10 @@ export const WORKFLOW_STEPS = {
 
 export const QUEUE_NAMES = {
   DOWNLOAD: 'download',
-  EXTRACT: 'extract', 
+  EXTRACT: 'extract',
   UPLOAD: 'upload',
-  DIARIZE: 'diarize'
+  DIARIZE: 'diarize',
+  CHUNK: 'chunk'
 };
 
 // Legacy queue name for backward compatibility

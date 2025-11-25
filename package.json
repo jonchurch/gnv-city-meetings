@@ -11,6 +11,7 @@
     "worker:extract": "node workers/extract-worker.js",
     "worker:upload": "node workers/upload-worker.js",
     "worker:diarize": "node workers/diarize-worker.js",
+    "worker:chunk": "node workers/chunking-worker.js",
     "backfill": "node backfill.js",
     "cleanup": "node cleanup.js",
     "redis:start": "./scripts/start-redis.sh",
@@ -39,8 +40,10 @@
     "ioredis": "^5.7.0",
     "multer": "^2.0.2",
     "open": "^10.1.2",
+    "openai": "^6.9.1",
     "pg": "^8.16.3",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "zod": "^4.1.13"
   }
 }
