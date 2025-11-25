@@ -5,7 +5,7 @@ import { formatTime } from "@/lib/api";
 
 interface TranscriptProps {
   lines: TranscriptLine[];
-  currentTime?: number;
+  currentTime?: number | null;
   onSeek?: (time: number) => void;
 }
 
@@ -25,8 +25,7 @@ export function Transcript({ lines, currentTime, onSeek }: TranscriptProps) {
   }
 
   const isLineActive = (line: TranscriptLine) => {
-    if (currentTime === undefined) return false;
-    return currentTime >= line.start_time && currentTime < line.end_time;
+    return currentTime != null && currentTime >= line.start_time && currentTime < line.end_time;
   };
 
   return (

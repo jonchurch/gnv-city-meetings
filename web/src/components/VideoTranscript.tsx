@@ -23,7 +23,7 @@ export function VideoTranscript({
   summary,
 }: VideoTranscriptProps) {
   const playerRef = useRef<YouTubePlayerHandle>(null);
-  const [currentTime, setCurrentTime] = useState<number>(startTime);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   // Poll player time for transcript highlighting
   useEffect(() => {
