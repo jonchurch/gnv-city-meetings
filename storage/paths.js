@@ -24,6 +24,7 @@ export const StorageTypes = {
   DERIVED_AUDIO: 'derived_audio',
   DERIVED_DIARIZED: 'derived_diarized',
   DERIVED_METADATA: 'derived_metadata',
+  DERIVED_CHUNKS: 'derived_chunks'
 };
 
 /**
@@ -60,6 +61,9 @@ export function pathFor(type, meetingId, options = {}) {
       
     case StorageTypes.DERIVED_METADATA:
       return path.join(DERIVED_DIR, 'metadata', `${safeId}_metadata.json`);
+
+    case StorageTypes.DERIVED_CHUNKS:
+      return path.join(DERIVED_DIR, 'chunks', `${safeId}_chunks.json`);
       
     default:
       throw new Error(`Unknown storage type: ${type}`);
