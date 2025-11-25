@@ -500,6 +500,30 @@ export async function assignChunksToTranscriptLines(meetingId, chunkRanges) {
   return updatedCount;
 }
 
+/**
+ * Assign chunk IDs to transcript lines based on segment indexes
+ * @param {string} meetingId
+ * @param {string} chunkId
+ * @param {number} startSegmentIndex
+ * @param {number} endSegmentIndex
+ * @returns {Promise<number>} - Number of lines updated
+ */
+export async function assignChunkBySegmentIndexes(meetingId, chunkId, startSegmentIndex, endSegmentIndex) {
+  const lineIds = [];
+  for (let i = startSegmentIndex; i <= endSegmentIndex; i++) {
+    lineIds.push(`${meetingId}_seg_${i}`);
+  }
+
+  const result = await query(
+    `UPDATE transcript_lines
+     SET chunk_id = $1
+     WHERE id = ANY($2)`,
+    [chunkId, lineIds]
+  );
+
+  return result.rowCount;
+}
+
 // ============================================================================
 // MEETING SUMMARIES
 // ============================================================================
@@ -608,6 +632,7 @@ export default {
   getMeeting,
   getMeetingWithChunks,
   upsertMeeting,
+  updateMeeting,
   updateMeetingStatus,
 
   // Speakers
@@ -624,6 +649,7 @@ export default {
   getTranscriptLines,
   insertTranscriptLines,
   assignChunksToTranscriptLines,
+  assignChunkBySegmentIndexes,
 
   // Summaries
   getMeetingSummary,
