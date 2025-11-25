@@ -10,7 +10,7 @@ if (!meetingId) {
   process.exit(1);
 }
 
-const OUTPUT_DIR = 'pages';
+const OUTPUT_DIR = '.tmp.local/pages';
 
 /**
  * Format seconds to YouTube timestamp parameter (e.g., 202 -> 202)
@@ -138,7 +138,7 @@ async function generateChunkPage(meeting, chunk, chunkIndex, totalChunks, apiBas
 
   // Video embed
   if (videoId) {
-    content += `<iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?start=${startTime}&autoplay=1&mute=1&cc_load_policy=1" `;
+    content += `<iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?start=${startTime}&autoplay=0&mute=1&cc_load_policy=1" `;
     content += `frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" `;
     content += `allowfullscreen></iframe>\n\n`;
   }
@@ -176,7 +176,7 @@ async function generateChunkPage(meeting, chunk, chunkIndex, totalChunks, apiBas
           currentSpeaker = speaker;
         }
 
-        content += `${line.text} `;
+        content += `${line.text}\n\n`;
       }
 
       content += `\n\n`;
