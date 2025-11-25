@@ -125,6 +125,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
             cc_load_policy: 1,
             rel: 0,
             modestbranding: 1,
+            playsinline: 1,
           },
           events: {
             onStateChange: (event) => {
