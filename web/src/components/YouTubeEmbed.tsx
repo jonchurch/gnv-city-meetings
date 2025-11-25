@@ -6,7 +6,7 @@ interface YouTubeEmbedProps {
 
 export function YouTubeEmbed({ videoId, startTime = 0, title }: YouTubeEmbedProps) {
   const startSeconds = Math.floor(startTime);
-  const src = `https://www.youtube.com/embed/${videoId}?start=${startSeconds}&autoplay=1&mute=1&cc_load_policy=1&rel=0`;
+  const src = `https://www.youtube.com/embed/${videoId}?start=${startSeconds}&cc_load_policy=1&rel=0`;
 
   return (
     <div className="aspect-video w-full">
