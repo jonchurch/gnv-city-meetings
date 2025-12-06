@@ -7,7 +7,7 @@ export function Header() {
       <div className="container mx-auto px-4 py-4">
         <nav className="flex items-center justify-between">
           <Link href="/" className="text-xl font-semibold">
-            Gainesville City Meetings
+            Gainesville City Meetings (florida)
           </Link>
           <div className="flex items-center gap-4">
             <Link
