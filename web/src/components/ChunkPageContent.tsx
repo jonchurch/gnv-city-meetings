@@ -99,14 +99,65 @@ export function ChunkPageContent({
       />
 
       <main className="max-w-3xl mx-auto px-6 py-12 sm:px-8 lg:px-12 xl:ml-72">
-        {/* Video */}
-        <div ref={mainVideoRef} className="mb-12">
-          <YouTubePlayer
-            videoId={videoId}
-            startTime={chunk.start_time}
-            onTimeUpdate={handleTimeUpdate}
-            onPlayerReady={handlePlayerReady}
-          />
+        {/* Video container - holds the player, which becomes fixed when mini */}
+        <div ref={mainVideoRef} className="mb-12 relative">
+          {/* Placeholder to maintain layout when player goes fixed */}
+          <div className="aspect-video w-full" />
+
+          {/* Player wrapper - switches between inline and fixed positioning */}
+          <div
+            className={`transition-all duration-300 ease-out ${
+              showMiniPlayer
+                ? "fixed bottom-4 right-4 w-72 z-50 rounded-lg overflow-hidden shadow-xl ring-1 ring-border bg-background"
+                : "absolute inset-0 rounded-xl overflow-hidden"
+            }`}
+          >
+            <div className="relative">
+              <YouTubePlayer
+                videoId={videoId}
+                startTime={chunk.start_time}
+                onTimeUpdate={handleTimeUpdate}
+                onPlayerReady={handlePlayerReady}
+              />
+
+              {/* Overlay when mini - blocks YouTube controls, click to scroll back */}
+              {showMiniPlayer && (
+                <button
+                  onClick={handleScrollToVideo}
+                  className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors cursor-pointer group flex items-center justify-center"
+                  aria-label="Back to video"
+                >
+                  <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 px-3 py-1.5 rounded-full">
+                    Back to video
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Mini player controls - only visible when mini */}
+            <div
+              className={`bg-background transition-all ${
+                showMiniPlayer
+                  ? "px-3 py-2 flex items-center justify-between gap-2"
+                  : "hidden"
+              }`}
+            >
+              <p className="text-xs text-muted-foreground truncate flex-1">
+                {chunk.title}
+              </p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMiniPlayer(false);
+                  setMiniPlayerDismissed(true);
+                }}
+                className="p-1 rounded hover:bg-muted transition-colors shrink-0"
+                aria-label="Dismiss mini player"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Summary */}
@@ -174,53 +225,6 @@ export function ChunkPageContent({
             </div>
           </div>
         </>
-      )}
-
-      {/* Floating mini player */}
-      {showMiniPlayer && (
-        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-          <div className="w-72 rounded-lg overflow-hidden shadow-xl ring-1 ring-border bg-background">
-            <button
-              onClick={handleScrollToVideo}
-              className="relative aspect-video w-full bg-muted cursor-pointer group/thumb"
-            >
-              <img
-                src={`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`}
-                alt="Video thumbnail"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                <span className="text-white text-sm font-medium">
-                  Back to video
-                </span>
-              </div>
-              <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                </span>
-                Playing
-              </div>
-            </button>
-
-            <div className="px-3 py-2 flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground truncate flex-1">
-                {chunk.title}
-              </p>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMiniPlayer(false);
-                  setMiniPlayerDismissed(true);
-                }}
-                className="p-1 rounded hover:bg-muted transition-colors shrink-0"
-                aria-label="Dismiss mini player"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
