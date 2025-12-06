@@ -138,6 +138,49 @@ Search transcripts, land on the exact moment, see it in context.
 }
 ```
 
+## Future Improvements
+
+### Human-Readable URLs
+
+Current URLs use UUIDs which are not user-friendly:
+```
+/meetings/0d57b610-0b15-4722-92bb-601620387cf5/chunks/9
+```
+
+Proposed scheme:
+```
+/m/2024-01-15-city-commission/c/9/public-comment-on-rezoning
+```
+
+Key insight: Use sequence number as the stable identifier, slug as cosmetic (like Stack Overflow `/questions/12345/any-slug-here`).
+
+- `/m/` - short for meetings
+- `2024-01-15-city-commission` - date + slugified meeting type
+- `/c/9/` - chunk sequence number (the real identifier)
+- `public-comment-on-rezoning` - optional slug, ignored for routing, good for humans/SEO
+
+**Stability considerations:**
+- Meeting date + type: stable
+- Chunk sequence numbers: can change if we re-run chunking pipeline
+- Chunk titles/slugs: can change on re-processing
+
+Accept that re-chunking may break old links, but this is rare. The sequence number is the source of truth; the slug is cosmetic and can change freely.
+
+### Persistent Video Player Across Chunk Navigation
+
+Currently each chunk page remounts the YouTube player, losing playback state. To keep video playing seamlessly when navigating between chunks within a meeting:
+
+**Approach:** Use a Next.js layout at the meeting level (`/meetings/[id]/layout.tsx`) that holds the YouTube player. Chunk pages become children that swap out transcript/summary content while the player persists.
+
+**Challenge:** Layouts don't receive child page data. Options:
+1. Layout fetches meeting + all chunks, shares via context
+2. Page updates context to tell layout "current chunk is X"
+3. Layout reads chunk info from its pre-fetched data
+
+This would enable SPA-like navigation within a meeting while keeping static generation benefits.
+
+---
+
 ### Chunk Detail Response
 `GET /api/chunks/0d57b610-0b15-4722-92bb-601620387cf5_chunk_7`
 
