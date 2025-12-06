@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   return (
@@ -8,7 +9,7 @@ export function Header() {
           <Link href="/" className="text-xl font-semibold">
             Gainesville City Meetings
           </Link>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
             <Link
               href="/"
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -21,6 +22,7 @@ export function Header() {
             >
               Search
             </Link>
+            <ThemeToggle />
           </div>
         </nav>
       </div>

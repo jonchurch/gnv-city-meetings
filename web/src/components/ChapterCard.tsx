@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TypeBadge } from "./TypeBadge";
+import { Badge } from "@/components/ui/badge";
 import { formatTime, formatDuration } from "@/lib/api";
 import type { Chunk } from "@/lib/types";
+import { getChunkTypeLabel, getChunkTypeColor } from "@/lib/types";
 
 interface ChapterCardProps {
   chunk: Chunk;
@@ -20,7 +21,12 @@ export function ChapterCard({ chunk, meetingId }: ChapterCardProps) {
             <CardTitle className="text-lg leading-tight">
               {chunk.sequence_number}. {chunk.title}
             </CardTitle>
-            <TypeBadge type={chunk.chunk_type} />
+            <Badge
+              variant="secondary"
+              className={`${getChunkTypeColor(chunk.chunk_type)} text-xs font-medium`}
+            >
+              {getChunkTypeLabel(chunk.chunk_type)}
+            </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
             {formatTime(chunk.start_time)} &middot; {formatDuration(duration)}
