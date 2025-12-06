@@ -2,13 +2,8 @@ import {
   getMeeting,
   getMeetings,
   getChunkBySequence,
-  formatTime,
-  formatDuration,
-  getYouTubeVideoId,
 } from "@/lib/api";
-import { ChunkNavigation } from "@/components/ChunkNavigation";
-import { VideoTranscript } from "@/components/VideoTranscript";
-import { TypeBadge } from "@/components/TypeBadge";
+import { ChunkPageContent } from "@/components/ChunkPageContent";
 
 interface Props {
   params: Promise<{ id: string; seq: string }>;
@@ -50,45 +45,24 @@ export default async function ChunkPage({ params }: Props) {
     getMeeting(id),
   ]);
 
-  const videoId = getYouTubeVideoId(meeting.youtube_url);
-  const duration = chunk.end_time - chunk.start_time;
+  // Find prev/next chunks
+  const currentIndex = meeting.chunks.findIndex(
+    (c) => c.sequence_number === sequenceNumber
+  );
+  const prevChunk = currentIndex > 0 ? meeting.chunks[currentIndex - 1] : undefined;
+  const nextChunk =
+    currentIndex < meeting.chunks.length - 1
+      ? meeting.chunks[currentIndex + 1]
+      : undefined;
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <ChunkNavigation
-        meetingId={id}
-        currentSequence={sequenceNumber}
-        totalChunks={meeting.chunks.length}
-      />
-
-      <div>
-        <h1 className="text-2xl font-bold">{chunk.title}</h1>
-        <div className="flex items-center gap-3 mt-2 text-muted-foreground">
-          <span>{formatTime(chunk.start_time)}</span>
-          <span>&middot;</span>
-          <span>{formatDuration(duration)}</span>
-          <span>&middot;</span>
-          <span>{meeting.title}</span>
-          <TypeBadge type={chunk.chunk_type} />
-        </div>
-      </div>
-
-      {videoId && (
-        <VideoTranscript
-          videoId={videoId}
-          startTime={chunk.start_time}
-          endTime={chunk.end_time}
-          title={chunk.title}
-          transcriptLines={chunk.transcript_lines}
-          summary={chunk.summary}
-        />
-      )}
-
-      <ChunkNavigation
-        meetingId={id}
-        currentSequence={sequenceNumber}
-        totalChunks={meeting.chunks.length}
-      />
-    </div>
+    <ChunkPageContent
+      chunk={chunk}
+      meeting={meeting}
+      prevChunk={prevChunk}
+      nextChunk={nextChunk}
+      currentIndex={currentIndex + 1}
+      totalChunks={meeting.chunks.length}
+    />
   );
 }

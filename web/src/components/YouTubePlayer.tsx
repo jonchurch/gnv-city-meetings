@@ -9,6 +9,8 @@ declare global {
         elementId: string,
         config: {
           videoId: string;
+          width?: string | number;
+          height?: string | number;
           playerVars?: Record<string, number | string>;
           events?: {
             onReady?: (event: { target: YTPlayerInternal }) => void;
@@ -47,6 +49,8 @@ interface YouTubePlayerProps {
   startTime?: number;
   endTime?: number;
   title?: string;
+  onTimeUpdate?: (time: number) => void;
+  onPlayerReady?: (player: YouTubePlayerHandle) => void;
 }
 
 let apiLoadPromise: Promise<void> | null = null;
@@ -71,14 +75,15 @@ function loadYouTubeAPI(): Promise<void> {
 }
 
 export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>(
-  function YouTubePlayer({ videoId, startTime = 0, endTime, title }, ref) {
+  function YouTubePlayer({ videoId, startTime = 0, endTime, title, onTimeUpdate, onPlayerReady }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<YTPlayerInternal | null>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const timeUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const playerIdRef = useRef(`yt-player-${Math.random().toString(36).slice(2)}`);
     const isPlayingRef = useRef(false);
 
-    useImperativeHandle(ref, () => ({
+    const handle: YouTubePlayerHandle = {
       seekTo: (seconds: number) => {
         playerRef.current?.seekTo(seconds, true);
         playerRef.current?.playVideo();
@@ -87,10 +92,29 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
       pause: () => playerRef.current?.pauseVideo(),
       getCurrentTime: () => playerRef.current?.getCurrentTime() ?? 0,
       isPlaying: () => isPlayingRef.current,
-    }));
+    };
+
+    useImperativeHandle(ref, () => handle);
 
     useEffect(() => {
       let destroyed = false;
+
+      const startTimeTracking = () => {
+        if (timeUpdateIntervalRef.current) return;
+
+        timeUpdateIntervalRef.current = setInterval(() => {
+          if (playerRef.current && onTimeUpdate) {
+            onTimeUpdate(playerRef.current.getCurrentTime());
+          }
+        }, 250);
+      };
+
+      const stopTimeTracking = () => {
+        if (timeUpdateIntervalRef.current) {
+          clearInterval(timeUpdateIntervalRef.current);
+          timeUpdateIntervalRef.current = null;
+        }
+      };
 
       const startEndTimeCheck = () => {
         if (intervalRef.current || endTime === undefined) return;
@@ -128,12 +152,17 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
             playsinline: 1,
           },
           events: {
+            onReady: () => {
+              onPlayerReady?.(handle);
+            },
             onStateChange: (event) => {
               isPlayingRef.current = event.data === window.YT.PlayerState.PLAYING;
               if (isPlayingRef.current) {
                 startEndTimeCheck();
+                startTimeTracking();
               } else {
                 stopEndTimeCheck();
+                stopTimeTracking();
               }
             },
           },
@@ -143,12 +172,13 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, YouTubePlayerProps>
       return () => {
         destroyed = true;
         stopEndTimeCheck();
+        stopTimeTracking();
         if (playerRef.current) {
           playerRef.current.destroy();
           playerRef.current = null;
         }
       };
-    }, [videoId, startTime, endTime]);
+    }, [videoId, startTime, endTime, onTimeUpdate, onPlayerReady]);
 
     return (
       <div className="aspect-video w-full">
