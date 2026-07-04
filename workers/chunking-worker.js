@@ -5,30 +5,21 @@ import { advanceWorkflow, handleWorkflowFailure } from '../workflow/orchestrator
 import { QUEUE_NAMES } from '../workflow/config.js';
 import * as pgDb from '../db/queries.js';
 import OpenAI from 'openai';
-import { z } from 'zod';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { pathFor, StorageTypes } from '../storage/paths.js';
 import { formatTranscriptForLLM } from './utils.js';
+import {
+  CHUNKING_MODEL,
+  ChunksResponseSchema,
+  WHOLE_MEETING_SYSTEM_PROMPT,
+  buildUserMessage,
+  validateChunkCoverage,
+} from './chunking-shared.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Zod schema for chunk output
-const ChunkSchema = z.object({
-  sequence_number: z.number().int().positive(),
-  start_segment_index: z.number().int().nonnegative(),
-  end_segment_index: z.number().int().nonnegative(),
-  title: z.string().min(1).max(100),
-  summary: z.string().min(1),
-  chunk_type: z.enum(['procedural', 'presentation', 'discussion', 'public_comment', 'vote']),
-  key_topics: z.array(z.string()).nullable().optional(),
-});
-
-const ChunksResponseSchema = z.object({
-  chunks: z.array(ChunkSchema),
 });
 
 /**
@@ -40,29 +31,11 @@ const ChunksResponseSchema = z.object({
 async function generateChunks(transcriptLines, meetingId) {
   const formattedTranscript = formatTranscriptForLLM(transcriptLines);
 
-  const systemPrompt = `You are helping to create semantic chunks for a city government meeting video, similar to YouTube chapters. Your goal is to identify natural segments within the provided transcript that would help users navigate to specific topics or discussion phases.
-
-Analyze the transcript and identify distinct chunks based on:
-
-1. **Topic changes** - When does the subject matter shift significantly?
-2. **Speaker patterns** - When does it change from presentation (monologue) to Q&A (dialogue) to discussion?
-3. **Natural transitions** - Look for phrases like "Before I move to...", "Any questions?", "Next I want to..."
-4. **Content purpose** - Is this procedural (votes, roll call), presentation (staff explaining), questions, or member comments?
-
-**Guidelines:**
-- Aim for chunks between 1-5 minutes each (not too granular, not too coarse)
-- **For presentations:** Break into sub-topics if the presentation covers multiple distinct subjects (e.g., "Team Introductions" vs "Budget Details" are separate chunks)
-- **Avoid over-chunking:** Don't create a new chunk for every speaker change within the same discussion
-- **Procedural moments** (votes, roll calls, agenda item introductions) should be separate from substantive content
-- **Title format:** Clear and scannable (e.g., "Commissioner Questions: Security Auditing" not "Discussion")
-
-**Important:** Use the segment index numbers (from the brackets) to specify which segments belong to each chunk. For example, if a chunk includes segments [0] through [9], set start_segment_index: 0 and end_segment_index: 9.`;
-
   const response = await openai.responses.parse({
-    model: 'gpt-5.1',
+    model: CHUNKING_MODEL,
     input: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Here is the transcript to chunk:\n\n${formattedTranscript}` },
+      { role: 'system', content: WHOLE_MEETING_SYSTEM_PROMPT },
+      { role: 'user', content: buildUserMessage(formattedTranscript) },
     ],
     text: {
       format: zodTextFormat(ChunksResponseSchema, 'chunks_response'),
@@ -105,33 +78,11 @@ Analyze the transcript and identify distinct chunks based on:
  * @returns {Array<string>} - Array of error messages (empty if valid)
  */
 function validateChunks(chunks, totalSegments) {
-  const errors = [];
-  const assigned = new Set();
+  const { errors, gaps } = validateChunkCoverage(chunks, 0, totalSegments - 1);
 
-  // Check each chunk
-  chunks.forEach((chunk, idx) => {
-    if (chunk.start_segment_index > chunk.end_segment_index) {
-      errors.push(`Chunk ${idx}: start_segment_index (${chunk.start_segment_index}) > end_segment_index (${chunk.end_segment_index})`);
-    }
-
-    if (chunk.start_segment_index < 0 || chunk.end_segment_index >= totalSegments) {
-      errors.push(`Chunk ${idx}: segment indexes out of range (0-${totalSegments - 1})`);
-    }
-
-    // Check for overlaps
-    for (let i = chunk.start_segment_index; i <= chunk.end_segment_index; i++) {
-      if (assigned.has(i)) {
-        errors.push(`Chunk ${idx}: segment ${i} already assigned to another chunk`);
-      }
-      assigned.add(i);
-    }
-  });
-
-  // Check for gaps (warn but don't fail)
-  for (let i = 0; i < totalSegments; i++) {
-    if (!assigned.has(i)) {
-      console.warn(`Warning: Segment ${i} not assigned to any chunk`);
-    }
+  // Gaps still warn rather than fail here, pending an auto-repair strategy
+  for (const gap of gaps) {
+    console.warn(`Warning: Segments ${gap.start}-${gap.end} not assigned to any chunk`);
   }
 
   return errors;
